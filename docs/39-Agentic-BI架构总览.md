@@ -72,8 +72,10 @@ C4Context
 
 ### 为什么要分离
 
-!!! tip "引申"
-    双平面分离的本质是"治理与执行解耦"。语义平面是"知识"——它定义"GMV 是什么、怎么算、用哪些表"；数据平面是"执行"——它执行"算出来的 SQL"。分离让治理变更（如修改 GMV 定义）不影响执行引擎，执行引擎升级不影响治理资产。这与 CDP 平台的"配置驱动"理念一脉相承——把"知识"和"执行"分开管理。
+!!! tip "引申：基石回扣——双平面分离 = 配置驱动的 AI 延伸"
+    双平面分离的本质是"治理与执行解耦"。语义平面是"知识"——它定义"GMV 是什么、怎么算、用哪些表"；数据平面是"执行"——它执行"算出来的 SQL"。分离让治理变更（如修改 GMV 定义）不影响执行引擎，执行引擎升级不影响治理资产。
+
+    这与 CDP 平台的"配置驱动"理念一脉相承——[Ch 11](./11-配置与状态管理.md) 把"做什么"（runtime config in DynamoDB）和"在哪跑"（deploy config in Terraform）分开管理；Agentic BI 把"知识"（语义平面 Git+YAML）和"执行"（数据平面 Redshift）分开管理。**同一个分离原则，在不同抽象层级反复应用**——runtime config 描述"任务怎么跑"，语义资产描述"AI 怎么理解业务"，两者都是"把描述与执行解耦"。这也是 ADR-1（双平面分离）的核心决策依据。
 
 ---
 
@@ -245,7 +247,7 @@ quadrantChart
 ```
 <p class="caption" markdown="span">**图 39-5** 引申：Agentic BI 的三种范式对比</p>
 
-| 维度 | ChatGPT DA | Cortex Analyst | 自建（the-ttd） |
+| 维度 | ChatGPT DA | Cortex Analyst | 自建（NewtonData） |
 |---|---|---|---|
 | **语义治理** | 无 | 有（:simple-snowflake: Snowflake 语义层） | 有（三层治理+Git） |
 | **数据仓库** | 任意（通过代码） | 仅 Snowflake | Redshift/可扩展 |

@@ -7,14 +7,14 @@
 
 ## 统计总览
 
-全书共 **334** 个 Mermaid 图表，分布在 **54** 个章节中。
+全书共 **336** 个 Mermaid 图表，分布在 **54** 个章节中。
 
 | 图表类型 | 数量 | 占比 |
 |---------|------|
-| `flowchart LR` | 126 | 37.7% |
-| `flowchart TB` | 107 | 32.0% |
+| `flowchart LR` | 129 | 38.3% |
+| `flowchart TB` | 108 | 32.1% |
 | `flowchart TD` | 46 | 13.8% |
-| `mindmap` | 13 | 3.9% |
+| `mindmap` | 11 | 3.3% |
 | `sequenceDiagram` | 13 | 3.9% |
 | `timeline` | 7 | 2.1% |
 | `quadrantChart` | 4 | 1.2% |
@@ -559,7 +559,7 @@
 
 ## Part VII Agentic BI
 
-> 10 章 | 66 个图表
+> 10 章 | 68 个图表
 
 ### Ch 38: 时代命题：AI-Ready 数据供应
 
@@ -571,7 +571,7 @@
 | **图 38-2**| `flowchart LR` | NL2SQL 的演进谱系 |
 | **图 38-3**| `flowchart TB` | Agentic BI 不是"聊天机器人" |
 | **图 38-4**| `flowchart LR` | 转型诉求 |
-| **图 38-5**| `flowchart LR` | the-ttd 的引入 |
+| **图 38-5**| `flowchart LR` | NewtonData 的引入 |
 | **图 38-6**| `flowchart TB` | 38.4 AI-Ready 数据的五个特征 |
 | **图 38-7**| `flowchart TD` | 38.5 build vs buy：Agentic BI 的方案决策框架 |
 
@@ -589,7 +589,7 @@
 
 ### Ch 40: 语义平面：三层治理与 Git+:simple-yaml: YAML
 
-**图表数量**: 7
+**图表数量**: 8
 
 | 图号 | 类型 | 描述 |
 |------|------|------|
@@ -599,18 +599,20 @@
 | **图 40-4**| `flowchart LR` | 为什么选 Git+YAML 而非数据库 |
 | **图 40-5**| `flowchart LR` | 40.3 离线发布管线 |
 | **图 40-6**| `flowchart TB` | CI 校验内容 |
-| **图 40-7**| `flowchart TB` | 40.4 引申：对比 dbt Semantic Layer / Cube ... |
+| **图 40-7**| `flowchart LR` | 40.4 资产认证生命周期 |
+| **图 40-8**| `flowchart TB` | 40.5 引申：对比 dbt Semantic Layer / Cube ... |
 
 ### Ch 41: R/V/G/D 四引擎 RAG 检索
 
-**图表数量**: 4
+**图表数量**: 5
 
 | 图号 | 类型 | 描述 |
 |------|------|------|
-| **图 41-1**| `flowchart TB` | 41.1 四引擎 RAG：R/V/G/D |
-| **图 41-2**| `flowchart LR` | 41.2 术语绑定强路由：业务术语全链路传播 |
-| **图 41-3**| `flowchart TD` | 41.3 Corrective-RAG 回退与重排 |
-| **图 41-4**| `flowchart LR` | 41.4 引申：Naive→Advanced→Modular RAG 演进谱系 |
+| **图 41-1**| `flowchart TB` | 41.1 四引擎 RAG：R/V/G/D 并行+串行协作 |
+| **图 41-2**| `flowchart LR` | 41.2 Reranker 四阶段重排 |
+| **图 41-3**| `flowchart LR` | 41.3 术语绑定强路由：业务术语全链路传播 |
+| **图 41-4**| `flowchart TD` | 41.4 Corrective-RAG 回退与重排 |
+| **图 41-5**| `flowchart LR` | 41.6 Naive→Advanced→Modular RAG 演进谱系 |
 
 ### Ch 42: Agent 编排：LangGraph 与状态机
 
@@ -623,7 +625,7 @@
 | **图 42-3**| `flowchart TD` | 修复回路（自愈） |
 | **图 42-4**| `flowchart LR` | SQL 缓存快路径 |
 | **图 42-5**| `flowchart LR` | HITL 审批流程 |
-| **图 42-6**| `flowchart TB` | 42.4 引申：ReAct / Plan-and-Execute / Re... |
+| **图 42-6**| `flowchart TB` | 42.5 引申：ReAct / Plan-and-Execute / Re... |
 
 ### Ch 43: 语义查询规划器：Steiner 树与代数改写
 
@@ -692,10 +694,10 @@
 | **图 47-3**| `mindmap` | 治理 CI 校验 |
 | **图 47-4**| `flowchart TB` | LLM-as-a-Judge 四维评估 |
 | **图 47-5**| `flowchart LR` | 基准评测结果 |
-| **图 47-6**| `mindmap` | 47.3 可观测四通道 |
-| **图 47-7**| `mindmap` | 47.3 可观测四通道 |
+| **图 47-6**| `flowchart TB` | 47.3 可观测四通道：从流水线到观测目标 |
 | **图 47-8**| `timeline` | 47.4 Roadmap：多租户 RLS、多 Provider 抽象、基准评测 |
 | **图 47-9**| `flowchart LR` | 多 Provider 抽象 |
+| **图 47-10**| `flowchart LR` | 47.2 反馈闭环：用户反馈→系统改进 |
 
 ## Part VIII 治理、复盘与展望
 

@@ -41,7 +41,7 @@ flowchart TB
 ```
 <p class="caption" markdown="span">**图 42-1** LangGraph StateGraph 机制</p>
 
-| 概念 | 作用 | 在 the-ttd 中的体现 |
+| 概念 | 作用 | 在 NewtonData 中的体现 |
 |---|---|---|
 | **State** | 全局状态，在节点间传递 | ~50 字段（问题/意图/检索结果/SQL/错误/重试次数...） |
 | **Node** | 处理单元，读写 State | 20+ 节点（Supervisor/QU/Router/RAG/Planner/Generator/Guardrail...） |
@@ -76,6 +76,29 @@ class AgentState(TypedDict):
 graph = StateGraph(AgentState)
 # 节点装配见 42.2
 ```
+
+LangGraph 还提供了两个高级控制流原语——`Command` 和 `interrupt`——它们在 NewtonData 的 HITL 和动态路由中发挥作用：
+
+```python
+# 示意：Command 动态跳转 + interrupt 暂停与恢复
+from langgraph.types import Command, interrupt
+
+def guard_node(state: AgentState) -> Command:
+    # 核心意图①：Command 让节点内部决定跳转目标（比条件边更灵活）
+    if state.get("guard_passed"):
+        return Command(update={}, goto="exec")      # 通过→执行
+    if state["retry"] >= 2:
+        return Command(update={}, goto=END)          # 重试上限→结束
+    return Command(update={"retry": state["retry"] + 1}, goto="heal")
+
+def high_risk_node(state: AgentState) -> dict:
+    # 核心意图②：interrupt 暂停执行，等待人工审批后恢复（HITL 基础）
+    approval = interrupt({"sql": state["sql"], "risk": "high"})
+    # approval 由外部 Command(resume=...) 提供
+    return {"approved": approval["approved"]}
+```
+
+`Command(goto=...)` 让节点内部根据状态动态决定跳转目标——比 `add_conditional_edges` 更灵活，因为跳转逻辑封装在节点内部而非声明在图编译时。`interrupt()` 在指定节点暂停执行，等待外部输入（如人工审批）后用 `Command(resume=...)` 恢复——这是 HITL（Human-in-the-Loop）的基础机制。
 
 ---
 
@@ -127,16 +150,32 @@ flowchart TD
 
 ### 7 条路由
 
-| 路由 | 触发条件 | 去向 |
-|---|---|---|
-| 标准查询 | 正常分析问题 | RAG 检索 |
-| 缓存命中 | 语义相似度 ≥ 0.92 | SQL Cache 快路径 |
-| 元数据查询 | "有哪些表"类问题 | 直接回答 |
-| 护栏通过 | SQL 校验通过 | 执行 |
-| 护栏失败 | SQL 校验失败 | 自愈回路 |
-| 重试上限 | 自愈 ≥ 2 次 | 返回错误 |
-| 执行成功 | SQL 执行成功 | 可视化 |
-<p class="caption" markdown="span">**表 42-2** 条路由</p>
+Router 根据 Query Understanding 的输出，用 `_INTENT_TO_ROUTE` 映射表（非 ML）决定路径。7 条路由覆盖从 KPI 直查到深度分析的全场景：
+
+| 路由 | 触发意图 | 执行路径 | 设计理由 |
+|---|---|---|---|
+| **标准查询** | KPI 直查 / 趋势对比排名 | RAG→重排→规划→生成→护栏→执行→可视化 | 主路径，覆盖 80% 查询 |
+| **缓存命中** | 语义相似度 ≥ 0.92 | 跳过检索+规划+生成，直接护栏→执行 | 用空间换时间 |
+| **元数据查询** | "有哪些表"类问题 | 直接回答，不走 SQL 流水线 | 不需要查数据 |
+| **深度分析** | 根因分析 / 报告 | + planner 节点 + 三级评估器 | Plan-and-Execute 范式 |
+| **图推理** | 关系探索 | graph_rag_agent（NL2Cypher），失败回退 SQL | 图遍历优于 SQL |
+| **知识问答** | 政策 / SOP 问答 | 检索→knowledge_qa_agent | 非数据查询 |
+| **澄清请求** | 模糊意图 | 检索→follow_up_agent 追问 | 避免在模糊意图上硬生成 |
+<p class="caption" markdown="span">**表 42-2** 7 条路由：意图→路径映射</p>
+
+### 条件路由函数
+
+条件边是编排的"控制流大脑"。每个条件函数根据当前状态决定下一个节点：
+
+| 函数 | 位置 | 可能返回值 | 决策依据 |
+|---|---|---|---|
+| `_route_after_router` | Router 后 | 7 路由分支 | QU 的 intent_type 映射 |
+| `_route_after_retrieval` | 检索后 | rerank / knowledge_qa / no_context / clarify | 检索结果质量 |
+| `_route_after_validation` | 护栏后 | execute / corrective_repair / reject | 校验失败类型 |
+| `_route_after_execution` | 执行后 | proceed / repair / fail | 执行结果 / 超时 |
+| `_route_after_result` | 解释后 | visualize / evaluate / insight / done | 路由计划 |
+| `_route_after_graph_rag` | 图推理后 | done / fallback_sql | Cypher 是否成功 |
+<p class="caption" markdown="span">**表 42-3** 条件路由函数</p>
 
 
 上面的拓扑和路由落到 LangGraph 代码，就是把 9 个节点注册到图，再用 `add_conditional_edges` 声明 Router 和 Guard 的分支逻辑：
@@ -221,7 +260,7 @@ def heal_node(state: AgentState) -> dict:
 | 列不存在 | R 引擎重新检索正确列名→重新生成 |
 | 成本过高 | 规划器调整 join 策略→重新生成 |
 | 术语不一致 | 术语绑定重新校准→重新生成 |
-<p class="caption" markdown="span">**表 42-3** 示意：自愈回路节点（corrective retrieval）</p>
+<p class="caption" markdown="span">**表 42-4** 自愈场景与修正方式</p>
 
 
 ### SQL 缓存快路径
@@ -299,7 +338,7 @@ flowchart LR
 | **低** | SELECT 查询、LIMIT 限制的结果集 | 自动执行 |
 | **中** | 大结果集导出、跨域聚合 | 自动执行 + 审计记录 |
 | **高** | DDL、大批量 DELETE/UPDATE、跨租户导出 | HITL 审批 |
-<p class="caption" markdown="span">**表 42-4** HITL 审批流程</p>
+<p class="caption" markdown="span">**表 42-5** HITL 审批流程</p>
 
 
 !!! tip "引申"
@@ -307,7 +346,56 @@ flowchart LR
 
 ---
 
-## 42.4 引申：ReAct / Plan-and-Execute / Reflexion 三理论的统一
+## 42.4 模型分配与 Fallback 链
+
+不同节点对 LLM 的要求不同——Query Understanding 需要快但不需要最强推理，SQL 生成需要最强推理但可以慢，洞察分析需要长文本生成能力。ModelRegistry 统一管理 task→model 映射，支持 Admin 在线覆盖和 Fallback 链降级：
+
+```python
+# 示意：模型分配 + Fallback 链 + Circuit Breaker
+class ModelRegistry:
+    """统一模型管理——task→model 映射，Admin 可在线覆盖，失败自动降级。"""
+    _task_models = {
+        "query_understanding": ["deepseek-v4-flash"],     # 快：意图识别不需要最强模型
+        "sql_generation":       ["deepseek-v4-pro", "qwen3.7-max"],  # 强：SQL 生成要最强推理
+        "insight":              ["qwen3.7-max"],           # 长文本生成
+    }
+    _failure_counts = {}     # 模型失败计数，用于 Circuit Breaker
+
+    def get_model(self, task: str):
+        chain = self._task_models.get(task, ["deepseek-v4-flash"])
+        for model in chain:
+            if self._circuit_open(model):      # Circuit Breaker：连续 3 次失败暂停 60s
+                continue
+            return model
+        raise ModelUnavailableError(f"任务 {task} 的所有模型均不可用")
+
+    def _circuit_open(self, model: str) -> bool:
+        # 核心意图：连续 3 次失败暂停模型 60s，避免故障扩散
+        return self._failure_counts.get(model, 0) >= 3 and not self._cooldown_expired(model)
+```
+
+| 机制 | 说明 | 价值 |
+|---|---|---|
+| **task→model 映射** | 不同任务分配不同模型（快/强/长文本） | 成本与质量平衡——简单任务用便宜模型 |
+| **Admin 在线覆盖** | Admin 可在数据库中修改模型配置 | 不重启切换模型，运维灵活 |
+| **Fallback 链** | 主模型失败自动切备选模型 | 不绑定单一 LLM，可用性有保障 |
+| **Circuit Breaker** | 连续 3 次失败暂停模型 60s | 避免故障扩散，快速失败而非排队等待 |
+
+### Graph RAG 降级
+
+`graph_reasoning` 路由的 `graph_rag_agent` 用 NL2Cypher 查 Apache AGE 图。如果 Cypher 生成失败（语法错误、查询不存在的节点），自动回退到 SQL 流水线——这是**优雅降级**的典型实现，任何子路径失败都有 fallback，不阻塞用户：
+
+```python
+# 示意：Graph RAG 降级到 SQL 流水线
+def _route_after_graph_rag(state: AgentState) -> str:
+    if state.get("graph_rag_success"):
+        return "done"                    # Cypher 成功→直接返回图结果
+    return "fallback_sql"                # 失败→回退到 SQL 流水线
+```
+
+---
+
+## 42.5 引申：ReAct / Plan-and-Execute / Reflexion 三理论的统一
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
 flowchart TB
@@ -317,7 +405,7 @@ flowchart TB
  REF@{ icon: "codicon:error", form: "rounded", label: Reflexion<br/>自我反思<br/>失败后总结经验, pos: "b", h: 36 }
  end
 
- subgraph the-ttd统一["the-ttd 的统一"]
+ subgraph NewtonData统一["NewtonData 的统一"]
  T1@{ icon: "codicon:search", form: "rounded", label: 确定性 DAG = Plan-and-Execute<br/>先规划查询路径再执行, pos: "b", h: 36 }
  T2@{ icon: "codicon:refresh", form: "rounded", label: 自愈回路 = Reflexion<br/>失败后分析原因并修正, pos: "b", h: 36 }
  T3@{ icon: "codicon:sparkle", form: "rounded", label: 条件路由 = 受控 ReAct<br/>根据结果决定下一步<br/>但路径预定义, pos: "b", h: 36 }
@@ -341,26 +429,38 @@ flowchart TB
 ```
 <p class="caption" markdown="span">**图 42-6** 引申：ReAct / Plan-and-Execute / Re...</p>
 
-| 理论 | 核心思想 | 在 the-ttd 中的体现 |
+| 理论 | 核心思想 | 在 NewtonData 中的体现 |
 |---|---|---|
 | **ReAct** | 思考→行动→观察循环 | 条件路由（受控版） |
 | **Plan-and-Execute** | 先规划再执行 | 确定性 DAG + 语义规划器 |
 | **Reflexion** | 失败后自我反思 | 自愈回路（corrective retrieval） |
-<p class="caption" markdown="span">**表 42-5** 引申：ReAct / Plan-and-Execute / Reflexion 三理论的统一</p>
+<p class="caption" markdown="span">**表 42-6** 引申：ReAct / Plan-and-Execute / Reflexion 三理论的统一</p>
 
 
-!!! tip "引申"
-    the-ttd 不是简单套用某一种理论，而是"取三者之长"——Plan-and-Execute 的"先规划"保证流程有序，Reflexion 的"自我修正"保证容错性，ReAct 的"根据结果决策"保证灵活性。但与纯 ReAct 不同，the-ttd 的"决策"是预定义的条件路由而非 LLM 自主决策——这是企业级可靠性需要的"受控自治"。
+!!! tip "引申：三理论引用与受控自治"
+    NewtonData 不是简单套用某一种理论，而是"取三者之长"——Plan-and-Execute 的"先规划"保证流程有序，Reflexion 的"自我修正"保证容错性，ReAct 的"根据结果决策"保证灵活性。但与纯 ReAct 不同，NewtonData 的"决策"是预定义的条件路由而非 LLM 自主决策——这是企业级可靠性需要的"受控自治"。
+
+    三理论的原始论文：ReAct（[arxiv.org/abs/2210.03629](https://arxiv.org/abs/2210.03629)）——LLM 交替推理与行动；Plan-and-Execute（[arxiv.org/abs/2305.04091](https://arxiv.org/abs/2305.04091)）——先规划全局再分步执行；Reflexion（[arxiv.org/abs/2303.11366](https://arxiv.org/abs/2303.11366)）——失败后自我反思修正。NewtonData 的取舍是用确定性图保证安全可审计（不同于纯 ReAct 的不可预测），用节点内的 LLM 保证局部智能，用 Plan-and-Execute 处理复杂分析，用 Reflexion 做质量兜底。
+
+### 当前实现可改进之处
+
+!!! warning "Trade-off：编排架构的已知局限"
+    1. **Supervisor 角色过轻**：Supervisor 仅在入口出现一次，无法在检索失败、SQL 生成困难等关键决策点介入。架构改进方向：在关键节点后增加状态评估点，由监督逻辑动态调整路径，而非仅做一次入口分发。
+    2. **路由设计缺乏自学习**：路由是静态的意图→路径映射，无法从历史查询中自动发现新模式。架构改进方向：增加路由效果反馈环，基于失败率与覆盖率自动提示扩展路由类别。
+    3. **全局状态耦合度高**：单一状态对象承载所有环节的中间结果，字段间隐含依赖难以追踪，是"上帝对象"反模式。架构改进方向：按职责分组为子状态域（输入/检索/生成/控制），显式声明依赖关系。
+    4. **HITL 覆盖面不足**：人机协同中断点仅覆盖可视化环节，SQL 执行前缺高危查询确认。架构改进方向：对高成本/高风险查询增加执行前 HITL 中断点，呼应纵深安全设计。
 
 ---
 
 ## :material-check-circle: 本章小结
-- LangGraph StateGraph：State（TypedDict，~50 字段全局状态）+ Node（20+ 节点）+ Edge（7 条路由）+ Checkpointer + Store
-- 节点拓扑：Supervisor→QU→Router→RAG→Plan→Gen→Guard→Exec→Viz，9 节点 + 7 条件路由用 add_conditional_edges 装配
-- 自愈回路：护栏失败→分析原因→corrective retrieval→重新生成，最多 2 次——Reflexion 思想（含 heal_node 伪代码）
+- LangGraph StateGraph：State（TypedDict，~50 字段全局状态）+ Node（20+ 节点）+ Edge（7 条路由）+ Checkpointer + Store；Command(goto) 动态跳转 + interrupt/Command(resume) HITL 暂停恢复
+- 节点拓扑：Supervisor→QU→Router→RAG→Plan→Gen→Guard→Exec→Viz，9 节点 + 7 条件路由用 add_conditional_edges 装配；7 路由覆盖 KPI 直查→深度分析全场景，6 个条件路由函数控制流
+- 自愈回路：护栏失败→分析原因→corrective retrieval→重新生成，最多 2 次——Reflexion 思想（含 heal_node 伪代码）；Graph RAG 失败优雅降级到 SQL 流水线
 - SQL 缓存快路径：相似度 ≥ 0.92 直接返回缓存 SQL，跳过检索+规划+生成
 - HITL 审批流程：高风险操作（DDL/大批量 DELETE/跨租户导出）Supervisor 暂停→推送审批→通过继续/拒绝取消，兼顾 AI 效率与合规可控
-- 三理论统一：Plan-and-Execute（先规划）+ Reflexion（自愈）+ 受控 ReAct（条件路由）——"受控自治"
+- 模型分配与 Fallback 链：ModelRegistry 统一管理 task→model 映射（快/强/长文本），Admin 在线覆盖，主模型失败自动降级，Circuit Breaker 连续 3 次失败暂停 60s
+- 三理论统一：Plan-and-Execute（先规划，[arxiv.org/abs/2305.04091](https://arxiv.org/abs/2305.04091)）+ Reflexion（自愈，[arxiv.org/abs/2303.11366](https://arxiv.org/abs/2303.11366)）+ 受控 ReAct（条件路由，[arxiv.org/abs/2210.03629](https://arxiv.org/abs/2210.03629)）——"受控自治"
+- 已知不足：Supervisor 过轻、路由静态缺自学习、状态字段过多（上帝对象）、缺 SQL 执行前 HITL 中断点
 
 ---
 

@@ -80,6 +80,9 @@ flowchart TB
 
 五层护栏落到代码，每层是一个校验函数，②③⑤ 用 AST 解析（如 `sqlglot`）精确控制：
 
+!!! note "sqlglot 方言适配"
+    `sqlglot` 支持多 SQL 方言解析（Redshift / PostgreSQL / MySQL...），护栏解析时需指定 `dialect="redshift"` 以正确识别 Redshift 专属语法（如 `DATEDIFF`、`GETDATE`）。开发态 pg_mooncake 后端（[Ch 46](./46-数据平面与CDP整合.md)）用 PostgreSQL 方言，护栏需做双方言 CI 校验。
+
 ```python
 # 示意：五层护栏的关键校验（② 策略黑名单 / ③ AST 列白名单 / ⑤ 成本估算）
 import sqlglot
@@ -251,7 +254,7 @@ def build_heal_feedback(guard_result, state: AgentState) -> str:
 ```
 
 !!! warning "Trade-off"
-    自愈回路提升了成功率（大多数错误可在 1-2 次重试中修正），但增加了延迟（每次重试需调用 LLM）。对于实时性要求高的场景，可以设"快速失败"（不重试直接返回错误）。the-ttd 默认 2 次重试，平衡成功率和延迟。
+    自愈回路提升了成功率（大多数错误可在 1-2 次重试中修正），但增加了延迟（每次重试需调用 LLM）。对于实时性要求高的场景，可以设"快速失败"（不重试直接返回错误）。NewtonData 默认 2 次重试，平衡成功率和延迟。
 
 ---
 
@@ -292,6 +295,11 @@ linkStyle default stroke:#697077,stroke-width:2px
 
 
 ### RLS/CLS 联动
+
+!!! tip "引申：基石回扣——五层护栏与 DaaS SQL 引擎的同一纵深思想"
+    [Ch 37](./37-数据即服务-DaaS激活层设计.md) 的 DaaS 也有 SQL 安全引擎（五层防御），但那里防范的是"人/外部系统提交的 SQL"，而 Agentic BI 这里的五层护栏防范的是"LLM 生成的 SQL"。两者是同一纵深思想在不同场景的应用：**永远不要信任进入数据库的 SQL，无论它来自人还是 AI**。
+
+    两者的安全基石都来自 CDP 的三层防护（[Ch 8](./08-数据仓库设计-Redshift.md) RLS/CLS + [Ch 18](./18-数据脱敏与隐私治理.md) 脱敏 UDF）——这是"数据层"的硬防线，即使 LLM 生成了越权 SQL，数据库层也会拒绝执行。Agentic BI 的护栏是"生成层"+"输入层"的软防线，两者叠加形成"输入→生成→执行"的完整安全链。**AI 不是绕过安全，而是在已有安全骨架上增加新的防护层**。
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
@@ -360,14 +368,14 @@ quadrantChart
 
 | 场景 | 风险 | 治理方式 |
 |---|---|---|
-| **SQL 生成**（the-ttd） | 数据泄露/资源耗尽 | 五层护栏 + RLS/CLS + LIMIT |
+| **SQL 生成**（NewtonData） | 数据泄露/资源耗尽 | 五层护栏 + RLS/CLS + LIMIT |
 | **代码解释器**（如 ChatGPT DA） | 任意代码执行风险 | 沙箱容器 + 资源限制 |
 | **Agent 自主编码** | 最高风险 | 强沙箱 + 权限最小化 + 审计 |
 <p class="caption" markdown="span">**表 44-5** 引申：LLM 生成代码的沙箱与执行治理</p>
 
 
 !!! warning "Trade-off"
-    LLM 生成代码的能力越强，安全风险越高。SQL 生成是"受限最强"的场景——SQL 是声明式的，可通过 AST 分析精确控制；而通用代码（:simple-python: Python）是命令式的，沙箱治理难度大得多。the-ttd 选择"只生成 SQL"而非"生成任意代码"，是安全性与功能性的 trade-off。
+    LLM 生成代码的能力越强，安全风险越高。SQL 生成是"受限最强"的场景——SQL 是声明式的，可通过 AST 分析精确控制；而通用代码（:simple-python: Python）是命令式的，沙箱治理难度大得多。NewtonData 选择"只生成 SQL"而非"生成任意代码"，是安全性与功能性的 trade-off。
 
 ---
 
@@ -377,7 +385,7 @@ quadrantChart
 - 咨询模式：高风险查询展示 SQL 供确认；自愈回路：失败→分析→精确纠错反馈→重新生成，最多 2 次
 - 执行安全四层：强制 LIMIT / 查询超时 / PII 分级（RLS+CLS+脱敏联动）/ 执行隔离（独立 Serverless 实例）
 - AI 以用户身份执行查询——RLS 策略在数据库层强制过滤，AI 权限 ≤ 用户权限——不绕过安全策略
-- LLM 代码治理谱系：SQL（受限最强）→ 代码解释器（沙箱）→ 自主编码（最强沙箱）——the-ttd 选 SQL 是安全 trade-off
+- LLM 代码治理谱系：SQL（受限最强）→ 代码解释器（沙箱）→ 自主编码（最强沙箱）——NewtonData 选 SQL 是安全 trade-off
 
 ---
 

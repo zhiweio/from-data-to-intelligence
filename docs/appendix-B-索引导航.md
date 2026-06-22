@@ -103,7 +103,7 @@
 | 事件驱动 | Ch 5, 10, 15 |
 | trade-off | 全书各章 ⚠️ 框 |
 | Mermaid 图 | 全书各章 |
-| the-ttd | Ch 38-47 |
+| NewtonData | Ch 38-47 |
 | Redshift Serverless | Ch 38, 45 |
 | 语义治理 | Ch 40, 43 |
 | Steiner 树 | Ch 43 |

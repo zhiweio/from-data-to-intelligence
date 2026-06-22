@@ -10,7 +10,7 @@
 ## :material-school: 本章你将学到
 - 为什么纯数据平台不够了：BI 自助化的瓶颈（含量化证据：被阻塞请求量/等待时间/队列深度）
 - Agentic BI 概念：从 prompt-only NL2SQL 到 Agent 编排
-- Aurora 的 Data+AI 转型诉求与 the-ttd 的引入
+- Aurora 的 Data+AI 转型诉求与 NewtonData 的引入
 - AI-Ready 数据的五个特征
 - build vs buy 决策框架（Cortex/Databricks/ThoughtSpot/自建对比）
 - NL2SQL 失败模式分类学（术语歧义/鸿沟陷阱/幻觉列/不安全查询 + 应对）
@@ -126,6 +126,12 @@ linkStyle default stroke:#697077,stroke-width:2px
 <p class="caption" markdown="span">**表 38-3** NL2SQL 的演进谱系</p>
 
 
+!!! tip "引申：基石回扣——从 DaaS 到 Agentic BI 的自然延伸"
+    [Ch 37](./37-数据即服务-DaaS激活层设计.md) 的 DaaS 解决了"数据如何被外部系统调用"的问题——它提供了统一的 Query API 和 Bulk API，把数仓数据"激活"到业务侧。但 DaaS 的消费者仍然需要会写 SQL——API 接收的是 SQL，不是自然语言。Agentic BI 是 DaaS 的自然延伸：DaaS 解决了"数据怎么传"，Agentic BI 解决了"SQL 怎么来"。两者共享同一套安全骨架（RLS/CLS/五层校验），只是 SQL 的来源从"人写"变成了"AI 生成"。这正是"Data+AI 转型是平台演变而非另起炉灶"的体现。
+
+    阶段 3 的"Agent 编排"融合了三种 Agent 理论：ReAct（思考→行动→观察循环，[arxiv.org/abs/2210.03629](https://arxiv.org/abs/2210.03629)）、Plan-and-Execute（先规划再执行，[arxiv.org/abs/2305.04091](https://arxiv.org/abs/2305.04091)）、Reflexion（失败后自我反思，[arxiv.org/abs/2303.11366](https://arxiv.org/abs/2303.11366)）。详见 [Ch 42](./42-Agent编排-LangGraph与状态机.md) 的三理论统一。
+
+
 ### Agentic BI 不是"聊天机器人"
 
 ```mermaid
@@ -162,7 +168,7 @@ linkStyle default stroke:#697077,stroke-width:2px
 
 ---
 
-## 38.3 Aurora 的 Data+AI 转型诉求与 the-ttd 的引入
+## 38.3 Aurora 的 Data+AI 转型诉求与 NewtonData 的引入
 ### 转型诉求
 
 ```mermaid
@@ -192,15 +198,15 @@ linkStyle default stroke:#697077,stroke-width:2px
 ```
 <p class="caption" markdown="span">**图 38-4** 转型诉求</p>
 
-### the-ttd 的引入
+### NewtonData 的引入
 
-为满足上述诉求，Aurora 引入了 **the-ttd（Talk-to-Data）** ——一个企业级 Agentic BI 平台，完全复刻并融入 CDP 平台。
+为满足上述诉求，Aurora 引入了 **NewtonData** ——一个企业级 Agentic BI 平台，完全复刻并融入 CDP 平台。
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
 flowchart LR
- subgraph the-ttd定位["the-ttd 在 CDP 中的定位"]
- CDP[CDP 数据平台<br/>数据湖+数仓+治理] -->|供应 AI-Ready 数据|TTD[the-ttd<br/>Agentic BI 平台]
+ subgraph NewtonData定位["NewtonData 在 CDP 中的定位"]
+ CDP[CDP 数据平台<br/>数据湖+数仓+治理] -->|供应 AI-Ready 数据|TTD[NewtonData<br/>Agentic BI 平台]
  TTD -->|自然语言查询|BIZ[业务用户]
  TTD -->|执行 SQL|RS[Redshift Serverless<br/>各环境独立实例]
  end
@@ -218,7 +224,7 @@ class RS bpData
 class TTD bpProcess
 linkStyle default stroke:#697077,stroke-width:2px
 ```
-<p class="caption" markdown="span">**图 38-5** the-ttd 的引入</p>
+<p class="caption" markdown="span">**图 38-5** NewtonData 的引入</p>
 
 | 特征 | 说明 |
 |---|---|
@@ -226,7 +232,7 @@ linkStyle default stroke:#697077,stroke-width:2px
 | **语义治理** | 三层语义治理约束 LLM 搜索空间 |
 | **Agent 编排** | LangGraph 状态机编排多步推理 |
 | **多层护栏** | 五层 SQL 护栏保证安全 |
-<p class="caption" markdown="span">**表 38-4** the-ttd 的引入</p>
+<p class="caption" markdown="span">**表 38-4** NewtonData 的引入</p>
 
 
 ---
@@ -281,7 +287,7 @@ linkStyle default stroke:#697077,stroke-width:2px
 |---|---|---|---|---|
 | **一体化云服务** | :simple-snowflake: Snowflake Cortex / :simple-databricks: Databricks AI/BI | 与数仓原生集成、零运维、开箱即用 | 锁定深、语义层定制弱、China 可用性受限 | 已用该数仓且需求标准化 |
 | **专用 NL2BI** | ThoughtSpot / Seeklight | 自然语言搜索体验好、预置可视化 | 价格高、语义层适配需大量配置、与自建数仓集成有摩擦 | 预算充足、BI 体验优先 |
-| **自建 Agentic BI** | the-ttd（本书方案） | 完全可控、语义层深度定制、可嵌入业务流程 | 开发成本高、需 AI 工程能力、维护负担 | 行业定制深、合规要求严、有工程团队 |
+| **自建 Agentic BI** | NewtonData（本书方案） | 完全可控、语义层深度定制、可嵌入业务流程 | 开发成本高、需 AI 工程能力、维护负担 | 行业定制深、合规要求严、有工程团队 |
 <p class="caption" markdown="span">**表 38-6** build vs buy：Agentic BI 的方案决策框架</p>
 
 
@@ -292,7 +298,7 @@ flowchart TD
  Q -->|是|Q2{语义层定制需求强?}
  Q2 -->|否|CLOUD[一体化云服务<br/>Cortex/Databricks]
  Q2 -->|是|Q3{合规/数据驻留要求?}
- Q3 -->|严|BUILD[自建 Agentic BI<br/>the-ttd 路线]
+ Q3 -->|严|BUILD[自建 Agentic BI<br/>NewtonData 路线]
  Q3 -->|宽|SPECIALIZED[专用 NL2BI<br/>ThoughtSpot]
 classDef bpProcess fill:#edf5ff,stroke:#0f62fe,stroke-width:2px,color:#161616
 classDef bpData fill:#d9fbfb,stroke:#007d79,stroke-width:2px,color:#161616
@@ -319,7 +325,7 @@ Aurora 选自建路线的根因有二：① 医药合规要求语义层深度定
     自建 Agentic BI 的隐性成本常被低估——不只是初始开发，还有持续的 LLM API 成本、语义资产维护、护栏调优、评估迭代。如果团队 AI 工程能力不足或语义定制需求不强，买现成方案是更务实的选择。自建适合"定制需求深 + 有工程能力 + 长期投入"的组合，三者缺一建议买。
 
 ## 38.6 NL2SQL 失败模式分类学：真实 bad case 前例
-自建 Agentic BI 最大的风险是"不知道会在哪翻车"。在 the-ttd 上线磨合期（[Ch 51](./51-价值度量与案例复盘.md) 30 天阶段），我们收集了一组典型失败案例，按失败模式分类——这些前例能帮后来者提前布防：
+自建 Agentic BI 最大的风险是"不知道会在哪翻车"。在 NewtonData 上线磨合期（[Ch 51](./51-价值度量与案例复盘.md) 30 天阶段），我们收集了一组典型失败案例，按失败模式分类——这些前例能帮后来者提前布防：
 
 | 失败模式 | 真实 bad case | 错误 SQL 节选 | 根因 |
 |---|---|---|---|
@@ -330,7 +336,7 @@ Aurora 选自建路线的根因有二：① 医药合规要求语义层深度定
 <p class="caption" markdown="span">**表 38-7** NL2SQL 失败模式分类学：真实 bad case 前例</p>
 
 
-每种失败模式对应一种应对：术语歧义→L2 术语绑定（[Ch 40](./40-语义平面-三层治理与Git-YAML.md)）；鸿沟陷阱→Steiner 树 + 代数改写（[Ch 43](./43-语义查询规划器-Steiner树与代数改写.md)）；幻觉列→RAG + AST 列白名单（[Ch 44](./44-五层SQL护栏与执行安全.md)）；不安全查询→策略黑名单 + 提示注入防御（[Ch 44](./44-五层SQL护栏与执行安全.md)）。这些前例正是 the-ttd 五层护栏和语义平面设计的"需求来源"——先看见失败，再设计防护。
+每种失败模式对应一种应对：术语歧义→L2 术语绑定（[Ch 40](./40-语义平面-三层治理与Git-YAML.md)）；鸿沟陷阱→Steiner 树 + 代数改写（[Ch 43](./43-语义查询规划器-Steiner树与代数改写.md)）；幻觉列→RAG + AST 列白名单（[Ch 44](./44-五层SQL护栏与执行安全.md)）；不安全查询→策略黑名单 + 提示注入防御（[Ch 44](./44-五层SQL护栏与执行安全.md)）。这些前例正是 NewtonData 五层护栏和语义平面设计的"需求来源"——先看见失败，再设计防护。
 
 !!! tip "引申"
     失败模式分类学的价值在于"把随机错误变为可分类问题"。上线初期准确率 75% 看似低，但拆开看：术语歧义占 40%、幻觉列占 30%、鸿沟陷阱占 20%、其他 10%——前三类都有明确应对手段。补齐术语绑定 + RAG + Steiner 树后，准确率跳到 93%+（[Ch 51](./51-价值度量与案例复盘.md)）。这就是"用失败驱动改进"的闭环：收集 bad case → 分类 → 针对性布防 → 验证提升。
@@ -341,11 +347,11 @@ Aurora 选自建路线的根因有二：① 医药合规要求语义层深度定
 - 传统 BI 瓶颈：取数依赖数据团队、口径困惑、时效延迟、规模化困境
 - NL2SQL 演进四阶段：Prompt-only → Schema-aware RAG → Agent 编排 → Agentic BI（企业可用）
 - Agentic BI 不是聊天机器人，是工程化治理的 NL2SQL Agent——挑战在"正确/安全/可解释"而非"生成"
-- the-ttd 引入：Agentic BI 平台，数据平面用 Redshift Serverless（dev/qa/prod 各环境独立），融入 CDP
+- NewtonData 引入：Agentic BI 平台，数据平面用 Redshift Serverless（dev/qa/prod 各环境独立），融入 CDP
 - AI-Ready 数据五特征：语义化/可治理/可追溯/低延迟/安全——本质是"从人读变为机读"
 
 ---
 
 !!! quote "下一章"
-    [Ch 39 Agentic BI 架构总览](./39-Agentic-BI架构总览.md) —— 了解了"为什么"要转型，接下来看 the-ttd 的完整架构设计。
+    [Ch 39 Agentic BI 架构总览](./39-Agentic-BI架构总览.md) —— 了解了"为什么"要转型，接下来看 NewtonData 的完整架构设计。
 

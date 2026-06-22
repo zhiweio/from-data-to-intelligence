@@ -22,6 +22,23 @@
 
 但语义平面最大的挑战不是"设计"——而是"维护"。谁来写这些 YAML？怎么保证它们正确？怎么让变更受控？这些问题比技术设计更难，也是这一章重点讨论的。
 
+### 治理 vs 元数据
+
+普通元数据（如 `information_schema`）只描述"表结构是什么"——列名、类型、是否可空。语义治理还描述"这个字段在业务上意味着什么、应该怎么用、和别的字段什么关系"——后者是 LLM 无法从世界知识补全的企业特有知识。这是把治理称为"一等公民"的原因：
+
+| 维度 | 普通元数据（information_schema） | 语义治理（NewtonData 语义平面） |
+|---|---|---|
+| **描述内容** | 表结构（列名/类型/约束） | 业务含义（指标定义/术语映射/join 路径/规则） |
+| **来源** | DDL 自动生成 | 人工编写 + CI 校验 |
+| **消费者** | BI 工具、ETL 工具 | LLM Agent（RAG 检索） |
+| **变更频率** | 随 DDL 变更 | 低频高治理（PR 审查） |
+| **LLM 能否补全** | 能（通用知识） | **不能**（企业特有知识） |
+<p class="caption" markdown="span">**表 40-1** 治理 vs 元数据</p>
+
+
+!!! tip "引申：基石回扣——从被动血缘到主动语义资产"
+    语义平面是 [Ch 20](./20-元数据管理与数据血缘.md) 元数据管理的演进。Ch 20 的被动血缘（审计日志、batch_id 关联、Glue Catalog）只能"事后追溯数据怎么来的"——它是描述性的，回答"数据是什么、从哪来"。语义平面则是"主动的、机器可读的业务知识"——它是规范性的，回答"数据应该怎么用、业务上意味着什么"。Ch 20 把"主动血缘"列为演进目标（[Ch 52](./52-架构师的复盘-取舍遗憾与主流对比.md) 复盘），语义平面正是这个目标的 AI 消费侧实现：Git+YAML 的版本化语义资产 = Ch 20 想要的"主动、版本化、可审查的元数据层"。
+
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
 flowchart TB
@@ -55,7 +72,7 @@ class RAG bpProcess
 | **L1 元数据契约** | 表/列/指标/join 的结构化定义 | `table: fact_prescription, columns: [...]` |
 | **L2 术语治理** | 业务术语→技术资产映射 | `term: "GMV" → metric: metric_gmv` |
 | **L3 业务规则** | 计算规则/约束/上下文 | `rule: GMV = SUM(amount) WHERE status='completed'` |
-<p class="caption" markdown="span">**表 40-1** 三层治理：L1 元数据契约 / L2 术语治理 / L3 业务规则</p>
+<p class="caption" markdown="span">**表 40-2** 三层治理：L1 元数据契约 / L2 术语治理 / L3 业务规则</p>
 
 
 ### 三层的关系
@@ -201,6 +218,37 @@ sql: |
     AND biz_date >= dateadd(month, -1, trunc(current_date, 'mon'))
 ```
 
+### 9 类资产的运行时消费映射
+
+9 种资产不是孤立存在的——它们在运行时被 R/V/G/D 四引擎（[Ch 41](./41-RVGD四引擎RAG检索.md)）以不同方式消费。理解这个映射，才能理解为什么需要 9 类而非更少：
+
+| 资产类型 | 层级 | 运行时消费方式 | 消费引擎 |
+|---|---|---|---|
+| `table_asset` | L1 | 向量检索表定义 | Engine V |
+| `column_asset` | L1 | 别名精确匹配 + 向量检索 | Engine R+ / V |
+| `metric_asset` | L1 | 向量检索 + 规划器源表推导 | Engine V / [Ch 43](./43-语义查询规划器-Steiner树与代数改写.md) 规划器 |
+| `join_rule` | L1 | Steiner 树建图（join 路径规划） | [Ch 43](./43-语义查询规划器-Steiner树与代数改写.md) 规划器 |
+| `few_shot_example` | L1 | 检索后注入 Prompt | Engine D / Prompt |
+| `business_term` | L1+2 | 精确匹配 + 术语绑定强路由 | Engine R / 全链路 |
+| `term_relationship` | L2 | Cypher 图遍历（同义/上下位） | Engine G |
+| `business_rule` | L3 | 直接注入 Prompt + 护栏校验 | Prompt / [Ch 44](./44-五层SQL护栏与执行安全.md) |
+| `business_context` | L3 | 直接注入 Prompt | Prompt |
+<p class="caption" markdown="span">**表 40-5** 9 类资产的运行时消费映射</p>
+
+
+### ID 命名规范
+
+资产 ID 用正则约束，确保全局唯一与可追溯——CI 强制校验命名规范：
+
+| 资产类型 | ID 格式 | 示例 |
+|---|---|---|
+| `table_asset` | `tbl_<domain>_<name>` | `tbl_pharma_fact_prescription` |
+| `column_asset` | `col_<table>_<column>` | `col_fact_txn_price` |
+| `metric_asset` | `metric_<name>` | `metric_gmv` |
+| `business_term` | `term_<name>` | `term_gmv` |
+<p class="caption" markdown="span">**表 40-6** ID 命名规范</p>
+
+
 ### System Prompt 设计
 
 语义资产最终要注入到 LLM 的 System Prompt 里，才能约束 SQL 生成。一个设计良好的 System Prompt 是分层的：角色定义 → 数据库 schema 约束 → 安全规则 → 输出格式，再按查询复杂度分级注入 few-shot 示例，术语绑定强路由优先：
@@ -259,7 +307,7 @@ class G1,G2,G3,G4 bpSuccess
 | **审计** | ✅ Git log | ❌ 需审计日志 |
 | **查询性能** | ❌ 需加载到内存 | ✅ 原生快 |
 | **适合场景** | 低频变更+高治理 | 高频变更+低治理 |
-<p class="caption" markdown="span">**表 40-2** 为什么选 Git+YAML 而非数据库</p>
+<p class="caption" markdown="span">**表 40-3** 为什么选 Git+YAML 而非数据库</p>
 
 
 !!! warning "Trade-off"
@@ -304,7 +352,7 @@ class SYNC bpProcess
 | CI 校验 | 一致性（引用的表/列是否存在） | 阻断 |
 | PR Review | 人工审查业务正确性 | 阻断 |
 | 发布 | YAML → S3 → 检索引擎同步 | 自动 |
-<p class="caption" markdown="span">**表 40-3** 离线发布管线</p>
+<p class="caption" markdown="span">**表 40-4** 离线发布管线</p>
 
 
 ### CI 校验内容
@@ -358,14 +406,72 @@ def validate_references(assets):
 !!! tip "引申"
     离线发布管线的设计灵感来自"代码发布"——语义资产像代码一样经历"写→lint→CI→review→merge→deploy"的全流程。这让语义治理从"随意修改"变为"受控变更"，是企业级 AI 系统与"玩具 demo"的本质区别。
 
+    发布管线还有两个细节值得说明。**增量发布**：PR 合并后 `build_changeset.py` 基于 git diff 构建增量变更集（只含变更的资产），而非全量重发——减少传输量与处理时间。仅在首次发布或 MAJOR 变更时才用全量发布。**后台自动同步**：Backend 后台服务定时轮询 S3 manifest hash，检测到变更后触发 `semantic_plane` agent 执行 R/V/G pipeline——R 引擎 Upsert 关系表、G 引擎 MERGE AGE 图、V 引擎生成 embedding 写入 pgvector。S3 快照中缺失的资产被软删除（标记 `deleted_at`，保留可追溯，非物理删除）。这实现了"业务开发只管写 YAML，其余全自动"的体验。
+
 ---
 
-## 40.4 引申：对比 dbt Semantic Layer / Cube 的语义层设计
+## 40.4 SemVer 版本化与认证生命周期
+
+语义资产是高治理对象——每次变更都必须可追溯、可回滚。这通过两个机制保证：SemVer 版本号与认证生命周期。
+
+### SemVer 版本化
+
+每条资产有 SemVer（语义化版本）版本号，CI 强制检查变更必须 bump version：
+
+| 版本类型 | 触发条件 | 影响范围 | 同步动作 |
+|---|---|---|---|
+| **MAJOR** | 破坏性变更（如改了指标 SQL 定义） | 影响所有依赖此资产的查询 | 触发全量重向量化 |
+| **MINOR** | 新增字段（如给 Table 资产加了一列描述） | 增量更新，不影响已有引用 | 增量同步 |
+| **PATCH** | 描述修正（如修正拼写、补充注释） | 不影响检索行为 | 不触发重向量化 |
+<p class="caption" markdown="span">**表 40-8** SemVer 版本化规则</p>
+
+```python
+# 示意：CI 版本号递增检查（check_version_bump.py 的核心逻辑）
+def check_version_bump(changed_assets, git_diff):
+    for asset in changed_assets:
+        old_ver = git_diff.get_old_version(asset.id)
+        new_ver = asset.version
+        if not is_version_bumped(old_ver, new_ver):
+            raise CiCheckError(f"资产 {asset.id} 有变更但未 bump version（{old_ver}）")
+        if asset.has_breaking_change() and not is_major_bump(old_ver, new_ver):
+            raise CiCheckError(f"资产 {asset.id} 有破坏性变更但未 MAJOR bump")
+```
+
+### 资产认证生命周期
+
+资产不只是"存在"或"不存在"——它有质量状态。新资产从 `draft` 开始，经人工 review 后进入 `certified`，certified 资产在 RAG 检索中优先排序。质量差的资产会被 `deprecated`，不再参与检索：
+
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
+flowchart LR
+ DRAFT[draft<br/>新建，未审核] --> REVIEWED[reviewed<br/>已审核]
+ REVIEWED --> CERTIFIED[certified<br/>认证，优先检索]
+ CERTIFIED --> DEPRECATED[deprecated<br/>弃用，不参与检索]
+ REVIEWED -.->|质量不足| DRAFT
+ DEPRECATED -.->|重新启用| REVIEWED
+
+ classDef bpProcess fill:#edf5ff,stroke:#0f62fe,stroke-width:2px,color:#161616
+ classDef bpData fill:#d9fbfb,stroke:#007d79,stroke-width:2px,color:#161616
+ classDef bpSuccess fill:#defbe6,stroke:#198038,stroke-width:2px,color:#161616
+ classDef bpError fill:#fff1f1,stroke:#da1e28,stroke-width:2px,color:#161616
+ class DRAFT bpData
+ class REVIEWED bpProcess
+ class CERTIFIED bpSuccess
+ class DEPRECATED bpError
+ linkStyle default stroke:#697077,stroke-width:2px
+```
+<p class="caption" markdown="span">**图 40-7** 资产认证生命周期</p>
+
+资产有 `quality_score`（质量分）和 `lifecycle_status`（生命周期状态）两个字段。Reranker（[Ch 41](./41-RVGD四引擎RAG检索.md)）在重排时给 certified 资产加分——这是"用质量信号驱动检索优先级"的设计，让高质资产优先被 LLM 看到。
+
+---
+
+## 40.5 引申：对比 dbt Semantic Layer / Cube 的语义层设计
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
 flowchart TB
  subgraph 三种语义层["三种语义层方案"]
- TTD@{ icon: "codicon:hubot", form: "rounded", label: the-ttd 语义平面<br/>Git+YAML+三层治理<br/>专为 Agentic BI, pos: "b", h: 36 }
+ TTD@{ icon: "codicon:hubot", form: "rounded", label: NewtonData 语义平面<br/>Git+YAML+三层治理<br/>专为 Agentic BI, pos: "b", h: 36 }
  DBT[dbt Semantic Layer<br/>dbt 模型延伸<br/>绑定 dbt 生态]
  CUBE[Cube<br/>独立语义层服务<br/>API 优先]
  end
@@ -381,9 +487,9 @@ classDef bpGroup fill:#ffffff,stroke:#0f62fe,stroke-width:2px,color:#161616
 class TTD bpProcess
 class DBT,CUBE bpExternal
 ```
-<p class="caption" markdown="span">**图 40-7** 引申：对比 dbt Semantic Layer / Cube ...</p>
+<p class="caption" markdown="span">**图 40-8** 引申：对比 dbt Semantic Layer / Cube ...</p>
 
-| 维度 | the-ttd 语义平面 | dbt Semantic Layer | Cube |
+| 维度 | NewtonData 语义平面 | dbt Semantic Layer | Cube |
 |---|---|---|---|
 | **管理方式** | Git + YAML | dbt YAML（同 repo） | JS/Schema 文件 |
 | **治理层级** | 三层（元数据/术语/规则） | 两层（metrics/dimensions） | 两层（cubes/dimensions） |
@@ -391,21 +497,23 @@ class DBT,CUBE bpExternal
 | **查询接口** | R/V/G/D 四引擎 | MetricFlow API | REST/GraphQL API |
 | **生态绑定** | 无（全栈自建） | dbt | 独立 |
 | **适合场景** | Agentic BI 深度定制 | dbt 用户 | 通用语义层 |
-<p class="caption" markdown="span">**表 40-4** 引申：对比 dbt Semantic Layer / Cube 的语义层设计</p>
+<p class="caption" markdown="span">**表 40-7** 引申：对比 dbt Semantic Layer / Cube 的语义层设计</p>
 
 
 !!! tip "引申"
-    dbt Semantic Layer 和 Cube 都是优秀的语义层方案，但它们主要为"BI 工具"设计——把指标定义统一，让 BI 工具查询一致。而 the-ttd 的语义平面专为"AI Agent"设计——除了指标定义，还有术语治理（L2）和业务规则（L3），这些是 AI 理解业务上下文所必需的。这是"BI 语义层"和"AI 语义层"的区别。
+    dbt Semantic Layer 和 Cube 都是优秀的语义层方案，但它们主要为"BI 工具"设计——把指标定义统一，让 BI 工具查询一致。而 NewtonData 的语义平面专为"AI Agent"设计——除了指标定义，还有术语治理（L2）和业务规则（L3），这些是 AI 理解业务上下文所必需的。这是"BI 语义层"和"AI 语义层"的区别。
 
 ---
 
 ## :material-check-circle: 本章小结
 - 三层治理：L1 元数据契约（表/列/指标/join 结构，YAML 示例）→ L2 术语治理（业务术语→技术映射）→ L3 业务规则（计算规则/约束），三层相互引用、CI 校验不断链
-- 9 种语义资产类型：表/列/指标/join/术语/规则/few-shot/上下文/权限，Join 供 Steiner 树消费、Few-shot 供 System Prompt 注入
+- 治理 vs 元数据：information_schema 只描述结构，语义治理还描述业务含义——后者是 LLM 无法补全的企业特有知识（Ch 20 被动血缘→主动语义资产的演进）
+- 9 种语义资产类型：表/列/指标/join/术语/规则/few-shot/上下文/权限，各有运行时消费映射（table→Engine V、join→Steiner 树建图、term→强路由...）；ID 命名规范（`tbl_<domain>_<name>` 等）确保全局唯一
 - System Prompt 分层设计：角色定义→schema 约束→安全规则→输出格式，few-shot 按复杂度分级注入，术语绑定强路由优先——降低幻觉的核心手段
-- Git+YAML 选型理由：版本控制+PR 审查+CI 校验+审计——匹配"低频变更+高治理"特征
-- 离线发布管线：pre-commit→CI 校验（引用完整性伪代码）→PR Review→发布 S3→R/V/G 同步——语义资产像代码一样受控发布
-- 对比 dbt/Cube：the-ttd 语义平面专为 AI Agent 设计（三层+术语+规则），dbt/Cube 主要为 BI 工具设计
+- Git+YAML 选型理由：版本控制+PR 审查+CI 校验+审计——匹配"低频变更+高治理"特征（与 Ch 11 配置驱动理念一脉相承）
+- 离线发布管线：pre-commit→CI 校验（引用完整性伪代码）→PR Review→增量变更集发布 S3→后台 R/V/G 自动同步（Upsert/MERGE/重向量化+软删除）——"业务开发只管写 YAML，其余全自动"
+- SemVer 版本化（MAJOR/MINOR/PATCH）+ 认证生命周期（draft→reviewed→certified→deprecated + quality_score 驱动检索优先级）
+- 对比 dbt/Cube：NewtonData 语义平面专为 AI Agent 设计（三层+术语+规则），dbt/Cube 主要为 BI 工具设计（两层，无术语治理层）——"BI 语义层"与"AI 语义层"的区别
 
 ---
 
