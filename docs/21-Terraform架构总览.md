@@ -52,6 +52,8 @@ linkStyle default stroke:#697077,stroke-width:2px
 !!! warning "Trade-off"
     Terraform state 含明文敏感信息（如数据库密码），S3 存储需严格 IAM 控制 + KMS 加密。另一种方案是 Terraform Cloud/Enterprise 的远程 state——托管且加密，但引入供应商依赖。本书方案用 S3+DynamoDB 是自托管、零额外成本的选择。
 
+我选 S3+DynamoDB 而非 Terraform Cloud，核心驱动力是"数据驻留"——Terraform Cloud 是 SaaS，state 存在 HashiCorp 的云上，而 Aurora 的合规要求所有数据留在中国境内。S3+DynamoDB 全在 AWS China，满足数据驻留。这个约束比"托管更省心"优先级高——**合规约束永远高于便利性**（M10）。DynamoDB lock 是我在第一年踩过坑才加的：最初没配 lock，两个开发者同时 `terraform apply`，state 文件被并发写入损坏，花了半天从 S3 版本控制回滚。从那以后 lock 成了标配——**state 并发写入是 Terraform 最容易出的灾难性故障**。
+
 ### State 隔离
 
 ```mermaid
@@ -88,6 +90,8 @@ class S3_DEV,S3_QA,S3_PROD bpData
 linkStyle default stroke:#697077,stroke-width:2px
 ```
 <p class="caption" markdown="span">**图 21-2** State 隔离</p>
+
+按环境隔离 state（dev/qa/prod 各一个 S3 key）是我从企业征信"state 混用"教训学的。企业征信时三个环境共用一个 state 文件，靠 `workspace` 区分——结果有次在 dev 环境 `terraform destroy` 时，误切到了 prod workspace，把 prod 的资源删了。那次事故让我发誓**state 必须物理隔离，不能靠 workspace 逻辑隔离**。到 Aurora 每个 environment 一个独立的 `.tfbackend` 配置文件，指向不同的 S3 key——dev 的 `terraform destroy` 物理上碰不到 prod 的 state。**逻辑隔离靠人记得住，物理隔离靠系统保证**——在 IaC 这种"一行命令就能删资源"的领域，物理隔离是唯一可靠的选择。
 
 ---
 
@@ -131,6 +135,9 @@ linkStyle default stroke:#697077,stroke-width:2px
 | **business-domain-{a..f}** | 业务域资源 | 高 | 业务域团队 |
 <p class="caption" markdown="span">**表 21-2** core-infra / business / generic-modules 三类仓库</p>
 
+这三类仓库协作的逻辑是"底层稳定、上层活跃"——core-infra 变更频率最低（共享资源一旦建好很少改），generic-modules 中等（模块迭代但不频繁），business-domain 最高（每天有业务需求变更）。频率分层直接决定了审批级别：core-infra 改动要平台架构组审批（影响全平台），business-domain 改动业务域团队自主（只影响自己域）。**IaC 分层不只是代码组织，更是变更治理的分层**——让高频变更在低风险层发生，低频变更在高风险层受控（M2 分层架构在 IaC 治理的落地）。
+
+我在项目第一年统计过这三类仓库的变更频率：core-infra 每月约 2 次（加资源/改配置），generic-modules 每月约 5 次（模块优化），business-domain 每月约 50 次（新数据源/改字段）。如果三类仓库混在一起（企业征信时的做法），50 次业务变更和 2 次核心变更混在一起，核心变更的审批会被业务变更淹没——"core-infra 改了个 IAM 策略，排在 30 个业务 PR 后面等审批"。分开后各走各的 CI/审批流，互不阻塞。**仓库分层是变更治理的物理隔离**。
 
 ---
 
@@ -174,6 +181,8 @@ linkStyle default stroke:#697077,stroke-width:2px
 !!! tip "引申"
     git submodule 的替代方案是 Terraform Registry / Module Registry——模块发布到 Registry，业务仓通过 `source` 和 `version` 引用。Registry 方式版本管理更规范，但需要自建私有 Registry 或使用 Terraform Cloud。submodule 方式零额外基础设施，适合初期。
 
+    我选 submodule 而非 Registry，是因为项目初期不想引入额外基础设施。submodule 的代价是"升级要手动更新指针"——generic-modules 发了新版本，每个业务仓要主动 `git submodule update`。这在 6 个业务仓时还好，到 15 个仓时升级一次模块要改 15 个仓的指针——很烦。但相比自建 Registry 的运维成本，submodule 的"烦"是可以接受的。**技术选型要匹配团队规模——15 个仓的"烦"不值得引入 Registry，50 个仓就值得了**。
+
 ### Remote State 引用
 
 业务仓通过 `terraform_remote_state` data source 引用 core-infra 的输出：
@@ -200,6 +209,8 @@ linkStyle default stroke:#697077,stroke-width:2px
 <p class="caption" markdown="span">**图 21-5** Remote State 引用</p>
 
 这让"共享资源的唯一定义权"归属 core-infra，业务仓只消费不创建。
+
+remote state 引用的设计价值是**避免资源重复定义**。S3 数据湖桶在 core-infra 创建一次，业务仓通过 `terraform_remote_state` 读取它的 ARN，而不是各自再创建。我在企业征信时犯过"重复定义"的错——三个业务仓各自用 Terraform 创建了"同一个" S3 桶（名字相同），结果 Terraform state 冲突，三个仓互相覆盖，最终桶的配置被改得面目全非。到 Aurora 我用 remote state 杜绝了这个问题——**共享资源只能有一个定义者，其他仓只能引用不能创建**。这是 IaC 治理的铁律，和 [Ch 4](./04-平台五层模型与设计哲学.md) 的"依赖只能向下"一脉相承。
 
 ---
 

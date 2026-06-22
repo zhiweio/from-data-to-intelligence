@@ -15,15 +15,15 @@
 
 ---
 
-数据平面是 Agentic BI 的"执行域"——语义资产发布到这里供 Agent 检索（[Ch 40](./40-语义平面-三层治理与Git-YAML.md)），用户的问题也在这里变成 SQL 执行。但这一章更重要的主题是：**Agentic BI 的数据平面不是从零搭建的，而是根植于前三年的 CDP 数据平台生长出来的**。
+数据平面是 Agentic BI 的"执行域"——语义资产发布到这里供 Agent 检索（[Ch 40](./40-语义平面-三层治理与Git-YAML.md)），用户的问题也在这里变成 SQL 执行。但这章想讲的事情更大一点：Agentic BI 的数据平面不是从零搭的，它是从前三年建好的 CDP 数据平台上长出来的。
 
-CDP 平台是基石——数据湖的 Medallion 分层（[Ch 7](./07-数据湖分层设计.md)）、数仓的 Kimball 模型与 RLS/CLS 防护（[Ch 8](./08-数据仓库设计-Redshift.md)、[Ch 18](./18-数据脱敏与隐私治理.md)）、控制面与数据面的分离（[Ch 9](./09-计算与ETL设计-Glue与Lambda.md)）、元数据与血缘（[Ch 20](./20-元数据管理与数据血缘.md)）、DaaS 的多租户隔离（[Ch 37](./37-数据即服务-DaaS激活层设计.md)）——这些前三年的建设，为 Agentic BI 提供了现成的数据底座和安全骨架。Data+AI 转型不是"另起炉灶"，而是"在已有的数据平台上嫁接 AI 能力"。
+CDP 平台是基石——数据湖的 Medallion 分层（[Ch 7](./07-数据湖分层设计.md)）、数仓的 Kimball 模型与 RLS/CLS 防护（[Ch 8](./08-数据仓库设计-Redshift.md)、[Ch 18](./18-数据脱敏与隐私治理.md)）、控制面与数据面的分离（[Ch 9](./09-计算与ETL设计-Glue与Lambda.md)）、元数据与血缘（[Ch 20](./20-元数据管理与数据血缘.md)）、DaaS 的多租户隔离（[Ch 37](./37-数据即服务-DaaS激活层设计.md)）——前三年的这些东西，给 Agentic BI 提供了现成的数据底座和安全骨架。Data+AI 转型不是另起炉灶，是在已有数据平台上嫁接 AI 能力。
 
 ---
 
 ## 46.1 数据平面：Redshift Serverless 多环境
 
-Agentic BI 的执行后端选用 Redshift Serverless，而非复用 CDP 生产 Redshift。这个决策的核心是**执行隔离**——AI 生成的 SQL 不可预测性高，可能产生大量复杂查询，直接打在生产 Redshift 上会影响 BI 查询性能。
+Agentic BI 的执行后端选了 Redshift Serverless，没复用 CDP 生产 Redshift。原因简单——AI 生成的 SQL 不可控，可能跑出一堆复杂查询，打在生产 Redshift 上会直接影响 BI 查询。独立实例做执行隔离，比从源头控制 SQL 质量更稳妥。
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
@@ -63,7 +63,7 @@ flowchart TB
 
 ### 双数据面后端切换
 
-生产用 Redshift Serverless，开发态可以切到轻量的 pg_mooncake（PG 列存扩展）作为本地替代——降低开发成本，不用每次查询都打云上 Redshift。切换通过环境变量控制，SQL 方言自动适配：
+生产用 Redshift Serverless，开发态切到 pg_mooncake（PG 列存扩展）做本地替代——省成本，不用每次查询都打到云上。切换靠环境变量，SQL 方言自动适配：
 
 ```python
 # 示意：双数据面后端切换 + SQL 方言适配
@@ -110,7 +110,7 @@ class DataPlaneExecutor:
 
 ## 46.2 语义检索层：PG Supernode 一体化架构
 
-语义检索层承载 R/V/G/D 四引擎的运行时检索。设计决策是用 **PG Supernode**——一个 PostgreSQL 实例统一承载 R/V/G 三类检索引擎（D 引擎也在同一 PG 的 `dynamic_few_shot_cache` 表）。这比"pgvector + Neo4j + Elastic"三套独立服务更简单——事务一致、运维简单、开发态一体化。
+语义检索层承载 R/V/G/D 四引擎的运行时检索。设计决策是 PG Supernode——一个 PostgreSQL 实例同时跑 R/V/G 三类检索引擎（D 引擎也在同一 PG 的 `dynamic_few_shot_cache` 表）。这比"pgvector + Neo4j + Elastic"三套独立服务省事多了：事务一致、运维简单、开发态不用联调多套服务。
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
@@ -172,17 +172,17 @@ flowchart LR
 
 
 !!! tip "引申：基石回扣——检索层与执行层分离 = 控制面与数据面分离"
-    检索层（PG Supernode）和执行层（Redshift Serverless）分离的原因是**职责不同**——检索层是"知识查询"（查语义资产，低频小数据），执行层是"数据查询"（执行 SQL，高频大数据）。混合在一起会互相影响性能。分离让各自独立扩展、独立优化。
+    检索层（PG Supernode）和执行层（Redshift Serverless）为什么要分开？职责不一样——检索层做"知识查询"（查语义资产，低频小数据），执行层做"数据查询"（执行 SQL，高频大数据）。混在一起互相拖累，拆开各自独立扩展、独立优化。
 
-    这与 CDP 平台的"控制面（Lambda）与数据面（Glue）分离"（[Ch 9](./09-计算与ETL设计-Glue与Lambda.md)）是同一个设计思想——Lambda 做轻量协调（控制面），Glue 做重计算（数据面）；PG Supernode 做轻量检索（知识面），Redshift 做重查询（执行面）。**同一个分离原则，在不同层级反复应用**——这是平台架构设计的底层逻辑。
+    这和 CDP 平台的"控制面（Lambda）与数据面（Glue）分离"（[Ch 9](./09-计算与ETL设计-Glue与Lambda.md)）是同一套思路——Lambda 做轻量协调（控制面），Glue 做重计算（数据面）；PG Supernode 做轻量检索（知识面），Redshift 做重查询（执行面）。同一个分离原则在不同层级重复出现，这是平台架构的底层逻辑。
 
-    NewtonData 选择 PG Supernode 一体化而非存算分离，是开发态的取舍——降低运维复杂度。生产态如果规模增长到千万级 embedding，可以演进到存算分离（抽象 VectorStore 接口，生产态切 Qdrant/Milvus）。
+    NewtonData 选 PG Supernode 一体化而非存算分离，是开发态的取舍——降低运维复杂度。如果生产规模涨到千万级 embedding，后续可以演进到存算分离（抽象 VectorStore 接口，生产切 Qdrant/Milvus），架构预留了这个演进路径。
 
 ---
 
 ## 46.3 把语义层接到 CDP：Redshift 作为 Agentic BI 执行后端
 
-这一节是"CDP 是基石"叙事的核心——Agentic BI 的执行后端不是独立的数据源，而是 CDP 数据平台的数据经过治理后同步过来的。
+这一节是"CDP 是基石"叙事的核心——Agentic BI 的执行后端不是独立的数据源，它吃的是 CDP 平台治理过的数据。
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
@@ -221,7 +221,7 @@ flowchart TB
 
 ### 数据同步链路
 
-CDP 数据湖的 Enriched 层（Gold）数据通过 `COPY` 命令同步到 Redshift Serverless——这一步复用了 CDP 平台已有的数据管道（[Ch 7](./07-数据湖分层设计.md) 的 Medallion 分层、[Ch 9](./09-计算与ETL设计-Glue与Lambda.md) 的 ETL 设计），不需要为 AI 单独建数据管道：
+CDP 数据湖的 Enriched 层（Gold）数据通过 `COPY` 命令同步到 Redshift Serverless——直接复用 CDP 已有的数据管道（[Ch 7](./07-数据湖分层设计.md) 的 Medallion 分层、[Ch 9](./09-计算与ETL设计-Glue与Lambda.md) 的 ETL 设计），不用为 AI 另建管道：
 
 ```sql
 -- 示意：CDP Enriched 层数据同步到 Redshift Serverless（AI 执行后端）
@@ -237,7 +237,7 @@ FORMAT AS PARQUET;
 
 ### RLS/CLS 继承策略
 
-AI 查询继承 CDP 的 RLS/CLS 策略——这是 [Ch 8](./08-数据仓库设计-Redshift.md) 和 [Ch 18](./18-数据脱敏与隐私治理.md) 建立的三层防护（行级安全 + 列级安全 + 脱敏 UDF）在 AI 场景的延伸。[Ch 37](./37-数据即服务-DaaS激活层设计.md) 的 DaaS 已经建立了 `db_user_{tenant}` 多租户隔离，Agentic BI 把这套机制延伸到 AI Agent 角色：
+AI 查询继承 CDP 的 RLS/CLS 策略——[Ch 8](./08-数据仓库设计-Redshift.md) 和 [Ch 18](./18-数据脱敏与隐私治理.md) 建立的三层防护（行级安全 + 列级安全 + 脱敏 UDF）在 AI 场景下的延伸。[Ch 37](./37-数据即服务-DaaS激活层设计.md) 的 DaaS 已经建好了 `db_user_{tenant}` 多租户隔离，Agentic BI 把这套机制延展到 AI Agent 角色：
 
 ```sql
 -- 示意：AI Agent 继承 CDP 的 RLS 策略（Ch 8/18/37 三层防护的延伸）
@@ -268,13 +268,13 @@ GRANT RLS POLICY region_isolation TO ROLE ai_agent_as_user_a;
 
 
 !!! tip "引申：基石回扣——三层防护从数据层延伸到生成层"
-    CDP 平台建立了 RLS/CLS/脱敏三层防护（[Ch 18](./18-数据脱敏与隐私治理.md)），[Ch 44](./44-五层SQL护栏与执行安全.md) 的五层护栏是这套防护在"生成层"的延伸。两者叠加形成完整安全链：CDP 防护是"数据层"的（数据本身有权限边界），Agentic BI 护栏是"生成层"+"输入层"的（LLM 生成的 SQL 要校验、用户输入要防注入）。数据层的 RLS/CLS 是最后一道硬防线——即使 LLM 生成了越权 SQL，数据库层也会拒绝执行。**AI 不是绕过安全，而是在已有安全骨架上增加新的防护层**。
+    CDP 平台建立了 RLS/CLS/脱敏三层防护（[Ch 18](./18-数据脱敏与隐私治理.md)），[Ch 44](./44-五层SQL护栏与执行安全.md) 的五层护栏是这套防护在"生成层"的延伸。两者叠加形成完整安全链：CDP 防护在"数据层"（数据本身有权限边界），Agentic BI 护栏在"生成层"+"输入层"（LLM 生成的 SQL 要校验、用户输入要防注入）。数据层的 RLS/CLS 是最后一道硬防线——即使 LLM 生成了越权 SQL，数据库层也会拒绝。AI 不是绕过安全，而是在已有安全骨架上加新的防护层。
 
 ---
 
 ## 46.4 AI-Ready 数据供应的落地：从数仓表到治理化语义资产
 
-数据同步到 Serverless 只是第一步——机器可读的表结构不等于 AI 可消费的语义资产。需要把 CDP 数仓表"语义化"：添加业务描述、术语映射、计算规则、join 路径，让 Agent 能检索、理解、执行。
+数据同步到 Serverless 只是第一步——机器可读的表结构跟 AI 可消费的语义资产是两码事。你得把数仓表"语义化"：加上业务描述、术语映射、计算规则、join 路径，Agent 才能检索、理解、执行。
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
@@ -340,7 +340,7 @@ flowchart TD
 
 ### LLM 辅助生成 YAML 草稿
 
-步骤② 的 YAML 编写是最大成本——每张暴露给 AI 的表都需要详细的语义描述（[Ch 40](./40-语义平面-三层治理与Git-YAML.md) 的三层治理 YAML）。缓解策略是用 LLM 辅助生成初始草稿，人工校验后发布：
+步骤②的 YAML 编写最花时间——每张暴露给 AI 的表都要写详细的语义描述（[Ch 40](./40-语义平面-三层治理与Git-YAML.md) 的三层治理 YAML）。挑了一个取巧的办法：用 LLM 从 schema 自动生成初始草稿，人工校验通过后再发布：
 
 ```python
 # 示意：LLM 辅助生成语义资产 YAML 草稿
@@ -361,7 +361,7 @@ def generate_yaml_draft(table_name: str, schema: dict) -> str:
 ```
 
 !!! warning "Trade-off：语义资产化的编写成本"
-    语义资产化的最大成本是人工编写 YAML——每张暴露给 AI 的表需要多个语义资产文件（Table + Column + Term + Metric 等），规模化后文件数量可观。这是 [Ch 40](./40-语义平面-三层治理与Git-YAML.md) 提到的架构性挑战。缓解方向：按查询频率分批优先（先核心高频表，再长尾）；引入 LLM 辅助生成草稿、人工校验发布的半自动化工作流，降低首次编写门槛。
+    语义资产化的主要负担是人工写 YAML——每张暴露给 AI 的表背后是多个语义资产文件（Table + Column + Term + Metric 等），规模化之后文件数量很可观。这就是 [Ch 40](./40-语义平面-三层治理与Git-YAML.md) 提到的架构性挑战。缓解办法：按查询频率分批优先，先把核心高频表做了，长尾的慢慢补；加上 LLM 辅助生成草稿、人工校验的半自动化工作流，降低首次编写门槛。
 
 ---
 
@@ -397,12 +397,12 @@ flowchart TB
 ```
 <p class="caption" markdown="span">**图 46-6** 引申：湖仓一体的语义层如何统一湖与仓的 AI 消费</p>
 
-当前架构中，数据湖（S3）和数据仓库（Redshift）是分离的——语义平面只描述 Redshift 中的表，数据湖的 Parquet 文件没有"表语义"。未来方向是"统一语义层"——一套语义资产同时描述数据湖和数据仓库的数据，AI 通过语义层统一消费，不需要关心数据在湖里还是仓里。
+当前架构中，数据湖（S3）和数据仓库（Redshift）是分离的——语义平面只描述 Redshift 中的表，数据湖的 Parquet 文件没有"表语义"。未来方向是"统一语义层"——一套语义资产同时描述湖和仓，AI 通过语义层统一消费，不关心数据物理上在湖里还是仓里。
 
-这需要表格式（:material-database-sync: Iceberg/Delta）的支持——让数据湖也拥有"表"的语义（schema、分区、事务），而非散落的文件。[Ch 7](./07-数据湖分层设计.md) 当初选择纯 Parquet 而非 Iceberg/Delta 是一个遗憾（[Ch 52](./52-架构师的复盘-取舍遗憾与主流对比.md) 复盘），湖仓一体的统一语义层正是弥补这个遗憾的演进方向。
+这需要表格式（:material-database-sync: Iceberg/Delta）的支撑——让数据湖也能有"表"的语义（schema、分区、事务），而不是散落的文件。[Ch 7](./07-数据湖分层设计.md) 当初选了纯 Parquet 没选 Iceberg/Delta，算是个遗憾（[Ch 52](./52-架构师的复盘-取舍遗憾与主流对比.md) 会复盘），湖仓一体的统一语义层正好弥补这个缺口。
 
 !!! tip "引申：湖仓一体的终极愿景"
-    湖仓一体（Lakehouse）的终极愿景是**湖和仓的边界消失，语义层统一一切**。Iceberg/Delta 表格式让数据湖拥有 ACID 事务、schema 演化、时间旅行——这些原本只有数据仓库才有的能力。当数据湖也变成了"表"，语义平面就能同时描述湖和仓的数据，AI Agent 不再需要知道"这张表在 S3 还是 Redshift"——统一语义层屏蔽了存储差异。这是数据平台演进的下一个台阶，也是 Agentic BI 数据供应的终极形态。
+    湖仓一体（Lakehouse）的终极愿景是湖和仓的边界消失，语义层统一一切。Iceberg/Delta 表格式让数据湖拥有 ACID 事务、schema 演化、时间旅行——这些原本只有数据仓库才有的能力。当数据湖也变成了"表"，语义平面就能同时描述湖和仓，AI Agent 不用再问"这张表在 S3 还是 Redshift"——统一语义层屏蔽了存储差异。这是平台演进的下一个台阶，也是 Agentic BI 数据供应的终极形态。
 
 ---
 

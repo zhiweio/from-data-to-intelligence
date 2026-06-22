@@ -122,6 +122,8 @@ linkStyle default stroke:#697077,stroke-width:2px
 !!! warning "Trade-off"
     自托管 runner 比 GitHub 托管 runner 多了运维成本（管 K8s/镜像），但好处是：①可在 VPC 内访问 AWS 资源（无需公网暴露）②可预装企业工具 ③无 GitHub 托管 runner 的分钟数限制。对于需要访问 VPC 内资源的数据平台，自托管是必要的。
 
+    我选自托管 runner 而非 GitHub 托管，决定性因素是**VPC 内访问**——Terraform apply 要访问 AWS 资源（S3/Redshift/Glue），这些资源在 VPC 内，且部分有"仅 VPC 可达"的安全组限制。GitHub 托管 runner 在公网，要访问 VPC 内资源要么开公网入口（安全风险），要么搭 VPN/隧道（复杂）。自托管 runner 跑在 VPC 内的 K8s 集群上，直接访问 AWS 资源——零网络配置。这个"网络就近"优势在医药合规场景下尤其重要——**开公网入口意味着暴露攻击面，合规审计不通过**。自托管的运维成本（管 K8s/镜像）是值得的代价。第一年我曾尝试用 GitHub 托管 runner + OIDC（不开公网入口，用短期凭证访问 AWS），但 OIDC 凭证只能解决"认证"问题，解决不了"网络可达"问题——Redshift 的安全组只允许 VPC 内访问，GitHub runner 在公网根本连不上。**认证和网络是两个问题——OIDC 解决认证，自托管解决网络**（M10 合规约束驱动选型）。
+
 ---
 
 ## 27.3 变更检测驱动的增量 CI

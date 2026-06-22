@@ -198,6 +198,8 @@ linkStyle default stroke:#697077,stroke-width:2px
 !!! tip "引申"
     好的 Terraform 模块像好的 API——接口稳定、文档清晰、向后兼容。推荐阅读 HashiCorp 官方的 [Terraform Module Best Practices](https://developer.hashicorp.com/terraform/best-practices) 指南。核心建议：模块聚焦单一资源类型（一个模块管 S3，另一个管 Glue），不要做"大而全"的模块。
 
+    这三原则（可组合/可测试/可回滚）不是我一开始就总结出来的，而是"违反了再补"的。最初我的 glue_job 模块是"大而全"的——它不只管 Glue Job，还管了 EventBridge 规则和 CloudWatch 告警（"反正都跟 Job 相关"）。结果"可组合"被破坏——只想用 Glue Job 不想用告警的业务仓，被迫接受告警资源。"可回滚"也被破坏——改告警逻辑会影响 Glue Job 用户。后来我把大模块拆成三个独立小模块（glue_job / eventbridge_rule / cloudwatch_alarm），每个聚焦单一资源，业务仓按需组合。**模块的粒度是"单一资源类型"——大而全的模块看起来方便，实则破坏了组合性和可回滚性**（M2 关注点分离在模块设计的落地）。
+
 ---
 
 ## :material-check-circle: 本章小结

@@ -5,7 +5,7 @@
 
 ---
 
-本书多处提及成本数据（[Ch 1](./01-数字化转型下的医药数据困局.md) 平台经济学、[Ch 47](./47-评估-可观测与持续演进.md) LLM 成本、[Ch 51](./51-价值度量与案例复盘.md) 四维价值），但成本治理是一个系统性工程——不只是"看账单"，还包括预算制定、异常检测、跨域分摊、优化闭环。这一附录把散见的成本内容收拢为一套 FinOps 实践。
+本书多个地方提到了成本数据（[Ch 1](./01-数字化转型下的医药数据困局.md) 平台经济学、[Ch 47](./47-评估-可观测与持续演进.md) LLM 成本、[Ch 51](./51-价值度量与案例复盘.md) 四维价值），但成本治理是个系统工程——不是光看账单，还包括预算怎么定、异常怎么发现、跨域怎么分摊、优化怎么闭环。这份附录把散在各处的成本相关内容收拢成一套完整的 FinOps 实践。
 
 ## FinOps 五环节
 
@@ -37,7 +37,7 @@ linkStyle default stroke:#697077,stroke-width:2px
 
 ## 标签策略：跨域分摊的基础
 
-跨域分摊的前提是**所有资源打标签**——这是 [Ch 22](./22-核心基础设施仓库设计.md) 治理层"标签策略"的落点，没有标签就无法分摊成本：
+跨域分摊的前提是**所有资源打标签**——这是 [Ch 22](./22-核心基础设施仓库设计.md) 治理层"标签策略"的落点。没有标签，成本根本分不到业务域头上：
 
 ```hcl
 # 示意：Terraform 强制标签策略（所有资源必须打这三类标签）
@@ -64,7 +64,7 @@ resource "aws_glue_job" "this" {
 
 ## 成本异常检测
 
-成本突增往往是配置错误的信号——某个 Glue Job 的 DPU 调高了忘记调回、Redshift RPU 弹性扩容未缩容、S3 上遗留大量未清理的中转文件。异常检测能在账单到来前发现这些问题：
+成本突增往往是配置出错的信号——Glue Job 的 DPU 调高忘记调回来了、Redshift RPU 弹性扩容没缩回去、S3 上堆了大量没清理的中转文件。异常检测能在账单出来之前先把这些问题揪出来：
 
 ```python
 # 示意：成本异常检测（日花费与 7 天均值对比）
@@ -79,7 +79,7 @@ def detect_cost_anomaly(service: str, today_spend: float) -> bool:
 
 ## infracost 集成：CI 中的成本门禁
 
-在 :simple-terraform: Terraform 的 CI 流程中集成 infracost，能在 `plan` 阶段就预估成本变化——PR 里自动 comment 月度成本 delta，超预算即 flag：
+在 :simple-terraform: Terraform 的 CI 里集成 infracost，能在 `plan` 阶段就估算出成本变化——PR 里自动 comment 月度成本 delta，超预算直接标红：
 
 ```yaml
 # 示意：GitHub Actions 中 infracost 集成（plan 后输出成本 delta）
@@ -93,7 +93,7 @@ def detect_cost_anomaly(service: str, today_spend: float) -> bool:
 ```
 
 !!! warning "Trade-off"
-    infracost 只能预估 Terraform 管理资源的成本，运行时成本（Glue 实际跑了多少 DPU-hour、Lambda 调用次数）无法预估。因此 infracost 是"配置变更成本门禁"，运行时成本仍需靠异常检测兜底。两者互补。
+    infracost 只能估 Terraform 管的那部分资源的成本。运行时费用（Glue 实际吃了多少 DPU-hour、Lambda 调了多少次）估不出来。所以 infracost 是"配置变更成本门禁"，运行时异常还得靠前面的异常检测兜底。两者互补。
 
 ## 优化清单：分服务的成本优化手段
 
@@ -106,7 +106,7 @@ def detect_cost_anomaly(service: str, today_spend: float) -> bool:
 | **Step Functions** | Standard 工作流用于高频短任务 | 改 Express 工作流（按调用次数而非状态转换计费） | 50-70% |
 
 !!! tip "引申"
-    FinOps 不是"一次性优化"，而是"持续治理"——平台规模增长时，昨天的最优配置今天可能变浪费。建议每季度做一次成本 review，对照优化清单逐服务检查。本书平台最大的单笔节省来自 Redshift 从 Provisioned 改 Serverless——夜间 RPU 从固定 24 节点降到 32 RPU，月省约 ¥15,000。这种优化只有定期 review 才能发现。
+    FinOps 不是一次搞定就完事了，是持续治理。平台规模在长，昨天的最优配置今天可能就变成浪费。每季度做一次成本 review，对着优化清单逐个服务过一遍。本书平台最大的一笔节省来自 Redshift 从 Provisioned 切到 Serverless——夜间 RPU 从固定 24 节点降到 32 RPU，一个月少花大概 ¥15,000。这种优化你不定期 review 根本发现不了。
 
 ---
 

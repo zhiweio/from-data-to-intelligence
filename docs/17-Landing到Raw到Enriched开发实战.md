@@ -50,7 +50,7 @@ linkStyle default stroke:#697077,stroke-width:2px
 !!! warning "Trade-off"
     三层分离的好处是"每层职责单一、可独立重跑"。代价是数据被写三次（Landing→Raw→Enriched），存储和计算成本更高。另一种方案是"两层"（ :octicons-git-merge-16: 合并 Landing 和 Raw），代价是"原始数据和标准化数据混在一起，重跑困难"。对于医药合规场景，三层的可追溯性优势值得这个成本。
 
-三层职责落到 :simple-apachespark: PySpark 代码，就是三个界限分明的转换阶段——每层只做自己的事，层间通过 Parquet 解耦，任何一层失败可独立重跑：
+把三层职责用 :simple-apachespark: PySpark 实现，就是三个转换阶段——每层只管自己的事，层间靠 Parquet 解耦，哪层挂了就重跑哪层：
 
 ```python
 # 示意：Landing→Raw→Enriched 三层 PySpark pipeline
@@ -98,7 +98,7 @@ linkStyle default stroke:#697077,stroke-width:2px
 ```
 <p class="caption" markdown="span">**图 17-2** 质量校验架构</p>
 
-声明式约束落到代码就是用 PyDeequ 的 `VerificationSuite` 把上面表格里的约束一行行声明出来，引擎自动生成校验逻辑并执行——比手写 SQL 校验更可维护：
+声明式约束落到代码，就是用 PyDeequ 的 `VerificationSuite` 把上面表格里的约束逐行声明出来，引擎自己生成校验逻辑去跑——比手写 SQL 校验好维护：
 
 ```python
 # 示意：PyDeequ 声明式质量校验（约束即声明）
@@ -185,9 +185,9 @@ linkStyle default stroke:#697077,stroke-width:2px
 <p class="caption" markdown="span">**表 17-3** 代理键生成</p>
 
 
-平台采用**哈希代理键**——对自然键（可能是复合键）做 SHA-256 哈希，生成确定性代理键。好处是：同一实体在不同源系统中，只要自然键相同，代理键就相同，天然支持跨源关联。
+平台用的方案是**哈希代理键**——对自然键（可能是复合键）做 SHA-256 哈希，出来的代理键是确定性的。同一实体在不同源系统里，只要自然键一样，代理键就一样，跨源关联直接能用。
 
-落到代码是一个 UDF：把一个或多个自然键字段拼接后做 SHA-256，复合键用分隔符拼接收敛成单一哈希：
+落到代码就是个 UDF：把一个或多个自然键字段拼起来做 SHA-256，复合键拿分隔符拼接后收敛成一个哈希：
 
 ```python
 # 示意：哈希代理键 UDF（支持复合自然键）
@@ -228,9 +228,9 @@ linkStyle default stroke:#697077,stroke-width:2px
 ```
 <p class="caption" markdown="span">**图 17-5** 行数对账</p>
 
-行数对账是**最简单但最有效**的质量保障手段——在每一层记录行数，层间比对。如果 Landing 有 1000 行但 Raw 只有 998 行，说明标准化过程中丢了 2 行，需要排查。
+行数对账是**最简单但最有效**的质量保障手段——每层记录行数，层间互相比较。Landing 有 1000 行但 Raw 只有 998 行？标准化过程丢了 2 行，得查。
 
-落到代码就是每层写入后捕获行数，写到一个对账表里层间比对：
+代码上就是每层写入后抓一下行数，写进对账表，层间互相比较：
 
 ```python
 # 示意：三层行数对账
@@ -252,7 +252,7 @@ reconcile(spark, config, counts)
 
 ### Schema 演进处理
 
-数据源不是一成不变的——业务系统加字段、改类型、删列是常态。三层 pipeline 如果对 schema 变化没有预案，会出现"上游加了一列，Enriched 层静默丢列"或"类型从 INT 变 VARCHAR，质检门禁全红"的事故。应对 schema 演进有两套方案，各有取舍：
+数据源是会变的——业务系统加字段、改类型、删列，这都是常事。三层 pipeline 如果对 schema 变化没预案，要么"上游加了列，Enriched 层静默丢掉"，要么"类型从 INT 变 VARCHAR，质检门禁全红"。应对 schema 演进有两套方案，各有利弊：
 
 | 方案 | 机制 | 优势 | 劣势 |
 |---|---|---|---|
@@ -272,7 +272,7 @@ reconcile(spark, config, counts)
 ```
 
 !!! warning "Trade-off"
-    平台默认采用**方案 A（防御式）**——医药合规要求"任何 schema 变更可审查"，静默合并风险过高。方案 B 仅用于非合规敏感域的快速迭代场景。无论哪种方案，删除列和类型变更这两类**破坏性变更**都必须告警——它们会导致下游 Redshift COPY 失败或质检门禁全红。
+    平台默认走**方案 A（防御式）**——医药合规要求"任何 schema 变更可审查"，静默合并的风险太大。方案 B 只用在非合规敏感域里快速迭代的场景。不管选哪个方案，删除列和类型变更这两类**破坏性变更**都必须告警——它们会直接让下游 Redshift COPY 失败或质检门禁全红。
 
 ---
 
