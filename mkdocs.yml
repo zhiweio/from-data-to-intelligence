@@ -46,9 +46,11 @@ theme:
       bug: material/bug
       example: material/format-list-bulleted
       quote: material/book-open
+  custom_dir: overrides
 
 plugins:
   - search
+  - meta
 
 markdown_extensions:
   - admonition
