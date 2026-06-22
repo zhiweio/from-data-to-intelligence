@@ -1,0 +1,59 @@
+/* Figure & Table captions — publishing standard */
+/* Caption: centered, one size smaller than body text, italic */
+
+p.caption {
+  text-align: center;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: #525252;
+  margin-top: 0.4em;
+  margin-bottom: 1.6em;
+  line-height: 1.5;
+}
+
+[data-md-color-scheme="slate"] p.caption {
+  color: #a6a6a6;
+}
+
+/* Center mermaid diagrams */
+.mermaid {
+  text-align: center;
+  display: flex;
+  justify-content: center;
+}
+
+.mermaid svg {
+  max-width: 100%;
+}
+
+/* Table alignment — center table container like figure captions */
+.md-typeset__scrollwrap {
+  display: flex !important;
+  justify-content: center !important;
+}
+
+.md-typeset__table {
+  display: inline-block !important;
+  margin: 1em auto !important;
+}
+
+.md-typeset table {
+  margin: 0 !important;
+}
+
+/* Left-align all table content */
+.md-typeset table th {
+  text-align: left !important;
+  vertical-align: middle !important;
+}
+
+.md-typeset table td {
+  text-align: left !important;
+  vertical-align: middle !important;
+}
+
+/* Override any nested element styles */
+.md-typeset table th p,
+.md-typeset table td p {
+  text-align: left !important;
+}
