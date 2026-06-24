@@ -1,5 +1,17 @@
 # 从数据到智能：企业级数据平台的构建、演进与 Agentic BI 实践
 
+<p align="center">
+  <img src="docs/images/cover.png" alt="本书封面" width="360" />
+</p>
+
+<p align="center">
+  <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans"><img src="https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-orange" alt="License: CC BY-NC-SA 4.0"></a>
+  <a href="https://github.com/zhiweio/from-data-to-intelligence/actions/workflows/docs.yml"><img src="https://img.shields.io/github/actions/workflow/status/zhiweio/from-data-to-intelligence/docs.yml?label=build&logo=github-actions&color=brightgreen" alt="Build Status"></a>
+  <img src="https://img.shields.io/badge/Made%20with-MkDocs%20Material-blue?logo=materialformkdocs" alt="MkDocs Material">
+  <img src="https://img.shields.io/badge/Chapters-53-blueviolet" alt="53 Chapters">
+  <img src="https://img.shields.io/badge/Language-简体中文-blue" alt="Language: Chinese">
+</p>
+
 > 一个数据开发的八年数据工程手记：从 0 到 1 构建企业级医药数据平台，再到 Data + AI 转型下的 Agentic BI。
 
 **在线阅读**：<https://zhiweio.github.io/from-data-to-intelligence/>
