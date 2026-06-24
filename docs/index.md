@@ -1,5 +1,9 @@
 # 从数据到智能：企业级数据平台的构建、演进与 Agentic BI 实践
 
+<p align="center">
+  <img src="images/cover.png" alt="本书封面" width="360" />
+</p>
+
 > 一个数据开发的八年数据工程手记：从 0 到 1 构建企业级医药数据平台，再到 Data + AI 转型下的 Agentic BI。
 
 ---
