@@ -12,6 +12,8 @@ description: >
 
 对《从数据到智能》全书全部内容章节进行**全量、连续、不间断**的审查与重写循环。
 
+**运行时**：兼容 Claude Code 与 Cursor。工具名对照见 [COMPAT.md](../COMPAT.md)。
+
 ## 核心原则
 
 **一次一章，审查→重写→确认→下一章，不停顿。** 这不是"审查完所有章节再重写"，而是"每一章审查发现的问题立即修复"——因为修复后的内容可能影响后续章节的衔接判断。
@@ -120,12 +122,12 @@ Ch N 审查结果 (3/5 节通过, 2/5 节需重写)
 - 确认该节应触达的核心母题（从 M1-M12 中选 2-3 个最相关的）
 
 **2b 知识补充（硬性要求）**：
-- 至少使用 Context7 查询 2 次（`mcp__context7__resolve-library-id` → `mcp__context7__query-docs`）
-- 至少使用 DeepWiki 查询 1 次（`mcp__cognitionai_deepwiki__ask_question`）
+- 至少使用 Context7 查询 2 次（Claude: `mcp__context7__*`；Cursor: `CallMcpTool` → `resolve-library-id` / `query-docs`，见 [COMPAT.md](../COMPAT.md)）
+- 至少使用 DeepWiki 查询 1 次（Claude: `mcp__cognitionai_deepwiki__ask_question`；Cursor: deepwiki `ask_question`）
 - 查询的技术主题根据该节内容自动确定
 
 **2c 执行重写**：
-- 用 Edit 工具替换目标 H3 节下的内容
+- 用 `Edit`（Claude）或 `StrReplace`（Cursor）替换目标 H3 节下的内容
 - 保持格式约定（AGENT.md）
 - 注入第一人称、trade-off 分析、核心母题共振
 - 通过"重写后自检清单"8 条检查

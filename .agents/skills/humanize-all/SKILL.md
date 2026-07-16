@@ -10,6 +10,8 @@ description: >
 
 对《从数据到智能》全书全部章节（共 53 章 + 7 附录 + 前言 = 61 个文件）进行**连续、不间断**的去 AI 写作痕迹处理。
 
+**运行时**：兼容 Claude Code 与 Cursor。工具名对照见 [COMPAT.md](../COMPAT.md)。调用 `humanizer-zh` 时：Claude 用 `Skill` 工具；Cursor 先 `Read` 其 `SKILL.md` 再按说明处理文本。
+
 ## 核心原则
 
 **humanize-all = 循环调度器 + 文件 I/O + 进度管理。humanizer-zh 技能 = 检测引擎 + 重写引擎。**
@@ -45,9 +47,9 @@ humanize-all（调度器）              humanizer-zh（检测+重写引擎）
      ├─ 读取章节全文                         │
      ├─ 跳过保护区域后，分块                  │
      │                                      │
-     ├── Skill调用 humanizer-zh ──→        检测 24 项模式
-     │  （传入文本块 + 上下文）              识别 AI 痕迹
-     │                                     重写问题段落
+     ├── 调用 humanizer-zh ──────→         检测 24 项模式
+     │  （Claude: Skill / Cursor: Read     识别 AI 痕迹
+     │   SKILL.md 后按说明执行）            重写问题段落
      │  ←── 返回人性化文本 ─────            注入真实语调
      │                                      │
      ├─ 将重写后文本拼回原文件               │
@@ -105,15 +107,14 @@ mkdir -p .claude/humanize-logs
 
 ### Step 2 — 调用 humanizer-zh 技能进行深度处理（核心步骤）
 
-**对每个文本块，必须通过 `Skill` 工具调用 `humanizer-zh`**。这是强制要求——humanize-all 自身不做检测和重写。
+**对每个文本块，必须通过 humanizer-zh 处理。** 这是强制要求——humanize-all 自身不做检测和重写。
 
-#### 调用格式
+#### 调用方式（按运行时）
 
-```
-使用 Skill 工具：
-  skill: "humanizer-zh"
-  args: 包含文本块和上下文的完整描述
-```
+| 运行时 | 如何调用 humanizer-zh |
+|---|---|
+| Claude Code | 使用 `Skill` 工具：`skill: "humanizer-zh"`，args 为下方 prompt 模板 |
+| Cursor | `Read` 用户级技能文件（优先 `~/.agents/skills/humanizer-zh/SKILL.md`，其次 `~/.claude/skills/` / `~/.cursor/skills/` 下同名路径），按其说明对文本块执行检测与重写；将下方 prompt 模板作为处理指令一并遵循 |
 
 #### 每次调用时向 humanizer-zh 传递的 prompt 模板
 
@@ -274,7 +275,7 @@ mkdir -p .claude/humanize-logs
 
 ### 1. 所有检测和重写必须通过 humanizer-zh 技能
 
-**humanize-all 本身不做检测、不做重写。** 每个文本块必须通过 `Skill` 工具调用 `humanizer-zh` 来处理。没有例外。
+**humanize-all 本身不做检测、不做重写。** 每个文本块必须经由 `humanizer-zh` 处理（Claude: `Skill` 工具；Cursor: Read 其 SKILL.md 后执行）。没有例外。
 
 ### 2. 保护区域不可触碰
 

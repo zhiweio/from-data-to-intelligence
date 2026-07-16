@@ -10,6 +10,8 @@ description: >
 
 对《从数据到智能：企业级数据平台的构建、演进与 Agentic BI 实践》全书进行结构化内容质量审查。
 
+**运行时**：兼容 Claude Code 与 Cursor。产物目录与工具对照见 [COMPAT.md](../COMPAT.md)。
+
 ---
 
 ## :material-target: 全书核心主旨（审查前必读）

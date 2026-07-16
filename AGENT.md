@@ -8,6 +8,7 @@
 - **书籍内容**：`docs/` 下的 Markdown 文件（`index.md`、`00-preface.md`、`01-…53-*.md`、`appendix-A…G.md`）。
 - **作者参考文件**：`meta/` 下的索引/速查表，不参与站点构建（不在 `docs_dir` 内），包括 `mermaid-catalog.md`、`table-catalog.md`、`blueprint-theme.md`。
 - **自定义资源**：`docs/javascripts/blueprint-icons.js`（Mermaid 图标包注册）、`docs/stylesheets/figure-caption.css`（图表标题/表格样式）。
+- **Agent Skills**：权威副本在 `.agents/skills/`（审查/重写/去 AI 味等）；`.claude/skills` 与 `.cursor/skills` 为指向该目录的符号链接，Claude Code 与 Cursor 共用同一套技能。运行时产物写在 `.claude/`（已 gitignore）。工具对照见 `.agents/skills/COMPAT.md`。
 
 ## 构建与校验命令
 

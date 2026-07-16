@@ -14,6 +14,8 @@ description: >
 
 重写不是"扩写"——不是给原来的几句话加更多修饰词。而是**补上缺失的思想内核**：设计决策推导、约束分析、取舍对比、实践案例。重写后的节应能在五维度评分中达到 ≥70 分。
 
+**运行时**：兼容 Claude Code 与 Cursor。工具名对照见 [COMPAT.md](../COMPAT.md)。局部编辑用 `Edit`（Claude）或 `StrReplace`（Cursor）。
+
 ---
 
 ## :material-target: 全书核心主旨（重写前必读）
@@ -162,22 +164,32 @@ description: >
 
 ### Step 2 — 知识补充（使用 MCP 工具）
 
-这是核心步骤。深度重写需要补充外部知识。**必须**使用以下 MCP 资源：
+这是核心步骤。深度重写需要补充外部知识。**必须**使用 Context7 + DeepWiki（工具名因运行时而异，见 [COMPAT.md](../COMPAT.md)）。
 
 #### 2a — 使用 Context7 查阅最新技术文档
 
-根据该节涉及的技术主题，调用 `mcp__context7__resolve-library-id` 和 `mcp__context7__query-docs` 获取最新文档。
+根据该节涉及的技术主题获取最新文档：
+
+| 运行时 | 调用方式 |
+|---|---|
+| Claude Code | `mcp__context7__resolve-library-id` → `mcp__context7__query-docs` |
+| Cursor | `GetMcpTools`（server 含 `context7`）→ `CallMcpTool`：`resolve-library-id` / `query-docs` |
 
 **示例**：
 - 如果节涉及 "GitHub Actions reusable workflows" → 查询 `github-actions` 相关文档
-- 如果节涉及 "AWS Step Functions" → 调用 `aws-step-functions` skill 或 Context7 查 AWS SDK
+- 如果节涉及 "AWS Step Functions" → Context7 查 AWS / Step Functions 文档
 - 如果节涉及 "LangGraph agent orchestration" → 查 LangGraph 最新文档
 
 不要只查一个库——查 2–3 个相关库，获取多维度的专业知识。
 
 #### 2b — 使用 DeepWiki 获取深度知识
 
-调用 `mcp__cognitionai_deepwiki__ask_question` 对相关开源项目提问。
+对相关开源项目提问：
+
+| 运行时 | 调用方式 |
+|---|---|
+| Claude Code | `mcp__cognitionai_deepwiki__ask_question` |
+| Cursor | `CallMcpTool`，server 为 deepwiki（如 `user-cognitionai/deepwiki`），tool `ask_question` |
 
 **示例**：
 - 节涉及 "Terraform module design" → 查 `hashicorp/terraform` deepwiki
@@ -267,7 +279,7 @@ description: >
    - [ ] 如果该节在 Part VII/VIII/II，深度和第一人称是否达到了"极高"标准？
 
 5. **编辑操作**：
-   - 用 Edit 工具替换目标 H3 节下的内容（从 `### X.Y 标题` 行到下一个 `###` 或 `##` 行之前）
+   - 用 `Edit`（Claude）或 `StrReplace`（Cursor）替换目标 H3 节下的内容（从 `### X.Y 标题` 行到下一个 `###` 或 `##` 行之前）
    - 保留该节的标题行不变
    - 保留该节中好的图表，只补充解读文字
 
