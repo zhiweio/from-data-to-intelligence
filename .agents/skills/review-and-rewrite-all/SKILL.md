@@ -64,11 +64,11 @@ Part I 完成 🎉 (进度 3/53)
      "status": "in_progress",
      "mode": "review-and-rewrite",
      "strategy": "full-loop",
-     "target": "Ch 1-Ch 52",
+     "target": "Ch 1-Ch 54",
      "current_chapter": 1,
      "current_part": "Part I",
      "completed": [],
-     "skip_list": ["00-preface", "53-致谢与团队", "appendix-*"],
+     "skip_list": ["00-preface", "55-致谢与团队", "appendix-*"],
      "stats": {
        "chapters_reviewed": 0,
        "chapters_passed_first_review": 0,
@@ -272,8 +272,8 @@ Ch N 审查结果 (3/5 节通过, 2/5 节需重写)
 | Ch 21-30 完成 | Part IV → Part V | 打印 "🎉 Part IV 完成 (30/53, 57%)" |
 | Ch 31-34 完成 | Part V → Part VI | 打印 "🎉 Part V 完成 (34/53, 64%)" |
 | Ch 35-37 完成 | Part VI → Part VII | 打印 "🎉 Part VI 完成 (37/53, 70%)" |
-| Ch 38-47 完成 | Part VII → Part VIII | 打印 "🎉 Part VII 完成 (47/53, 89%)" |
-| Ch 48-52 完成 | 全书完成 | 打印 "🎉 全书审查与重写完成！" |
+| Ch 38–49 完成 | Part VII → Part VIII | 打印 "🎉 Part VII 完成 (49/55, 89%)" |
+| Ch 50-52 完成 | 全书完成 | 打印 "🎉 全书审查与重写完成！" |
 
 ## 执行纪律
 
@@ -326,5 +326,5 @@ Ch N 审查结果 (3/5 节通过, 2/5 节需重写)
 1. **这是大工程**：全书约 50 章，预估 200-300 个小节。如果 30% 需要重写，就是 60-90 个小节需要逐节深度重写——每个需要 Context7×2 + DeepWiki×1 + Edit。总 token 消耗可能非常高（数十万到百万级）。
 2. **用户可在任何时刻中断**：虽然本技能设计为"不允许停止中断"的连续循环，但用户始终可以通过取消/中断来控制。进度文件确保中断后可以从断点恢复。
 3. **附录不审查**：appendix-A 到 G 不参与审查流程（它们是参考工具，不是叙事章节）。
-4. **Ch 00 前言和 Ch 53 致谢不审查**：前言已精心打磨，致谢是个人的，不适合自动化审查。
+4. **Ch 00 前言和 Ch 55 致谢不审查**：前言已精心打磨，致谢是个人的，不适合自动化审查。
 5. **--dry-run 模式**：如果用户不确定，建议先 `--dry-run` 跑一遍全量审查，看看大概有多少节需要重写，评估工作量后再决定是否执行完整 review-and-rewrite。

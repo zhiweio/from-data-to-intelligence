@@ -2,7 +2,7 @@
 !!! info "面包屑"
     [本书主页](./index.md) › [Part VII Data+AI 转型](./41-RVGD四引擎RAG检索.md) › Ch 42
 
-!!! abstract "项目第 4 年 · Data+AI转型期——Agent编排"
+!!! abstract "项目第 4 年 · Data+AI POC——Agent 编排"
 
 ---
 
@@ -15,7 +15,10 @@
 ---
 
 ## 42.1 LangGraph StateGraph 机制
-LangGraph 是 :simple-langchain: LangChain 出品的 Agent 编排框架，核心抽象是 **StateGraph（状态图）**——把 Agent 流程建模为"状态驱动的有向图"。说实话，刚开始接触的时候我觉得这概念挺平淡的——就是节点和边嘛，有什么新鲜的。但真正上手用之后才意识到，它真正厉害的地方不在"图"本身，而在把 LLM 的不可预测性装进了一个可审计、可断点恢复的状态容器里。
+
+语义资产和四引擎检索（[Ch 40](./40-语义平面-三层治理与Git-YAML.md)、[Ch 41](./41-RVGD四引擎RAG检索.md)）解决了"查什么"，这一章讲 POC 里"按什么顺序跑"。内部试用要的是**可追踪、可中断、可回放**的路径——出了错能指到哪一跳，而不是一团黑盒对话。
+
+LangGraph 是 :simple-langchain: LangChain 出品的 Agent 编排框架，核心抽象是 **StateGraph（状态图）**——把 Agent 流程建模为"状态驱动的有向图"。说实话，刚开始接触的时候我觉得这概念挺平淡的——就是节点和边嘛，有什么新鲜的。但真正上手用之后才意识到，它真正厉害的地方不在"图"本身，而在把 LLM 的不可预测性装进了一个可审计、可断点恢复的状态容器里。POC 里我们还用条件边给实验性规划器（[Ch 43](./43-语义查询规划器-Steiner树与代数改写.md)）留了开关——小域默认可关，复杂 join 场景再开。
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%

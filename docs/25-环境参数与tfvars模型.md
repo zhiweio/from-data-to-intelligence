@@ -8,13 +8,15 @@
 ---
 
 ## :material-school: 本章你将学到
-- 环境级参数文件与按服务拆分 tfvars 策略（含 glue-all.tfvars / dev-all.tfvars 真实片段）
-- 运行时配置 vs 部署参数的边界
-- 后端配置多环境隔离（含 dev/prod.tfbackend HCL）
+- `{env}-all` + 按服务 `*-all.tfvars` 的分层与 `-var-file` 组合方式
+- 部署参数（Terraform）vs 运行时配置（DynamoDB）的边界判据
+- 分环境 `*.tfbackend`：独立桶 + 独立锁表，以及误删事故后的隔离强度升级
 
 ---
 
 ## 25.1 环境级参数文件与按服务拆分策略
+
+模块是积木（[Ch 24](./24-通用Terraform模块设计.md)），tfvars 决定每个环境怎么拼。Aurora 业务仓把代码放在 `regional/`，参数放在 `environments/`；同构约定里，这一半几乎全在这里。
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
@@ -35,48 +37,39 @@ linkStyle default stroke:#697077,stroke-width:2px
 ```
 <p class="caption" markdown="span">**图 25-1** 环境级参数文件与按服务拆分策略</p>
 
-| 文件 | 内容 | 变更频率 |
-|---|---|---|
-| `{env}-all.tfvars` | 环境级全局参数（region/account_id/通用前缀） | 极低 |
-| `glue-all.tfvars` | Glue Job 定义（脚本路径/DPU/超时） | 中 |
-| `lambda-all.tfvars` | Lambda 定义（运行时/内存/超时） | 中 |
-| `step-functions-all.tfvars` | 状态机定义 | 低 |
-| `eventbridge-all.tfvars` | 调度规则（cron 表达式） | 中 |
-| `redshift-all.tfvars` | Redshift Schema/表/权限 | 低 |
+| 文件 | 内容 | 变更频率 | 谁的 plan 会带 |
+|---|---|---|---|
+| `{env}-all.tfvars` | region / 前缀 / cost_center | 极低 | 所有 `repo_type` |
+| `glue-all.tfvars` 等 | 各服务资源参数 | 中 | develop / platform |
+| `iam-all.tfvars` | 平台 IAM | 低 | **仅** foundation / infra |
+| `step-functions-all.tfvars` + `state_files/` | 编排与 ASL 模板 | 低–中 | develop（桥接 [Ch 26](./26-StepFunctions模板注入.md)） |
 <p class="caption" markdown="span">**表 25-1** 环境级参数文件与按服务拆分策略</p>
 
+CI 里 plan 按 `repo_type` 组装 `-var-file`，不是随手挂几个文件：
 
-`glue-all.tfvars` 的真实片段长这样——每个 Glue Job 一组参数，脚本路径用版本化 S3 路径，调度用 cron 表达式：
-
-```hcl
-# 示意：business-domain-ma/glue-all.tfvars —— Glue Job 定义（dev 环境）
-glue_jobs = {
-  ma_doctor_master = {
-    script_location = "s3://ap-aurora-cdp-tooling-dev-cn-north-1/glue/v1.2.3/doctor.py"
-    max_dpus        = 6
-    timeout         = 45                                    # 分钟
-    schedule        = "cron(0 16 * * ? *)"                  # UTC 16:00 = 北京次日 00:00
-    extra_py_files  = "s3://ap-aurora-cdp-tooling-dev-cn-north-1/glue/aurora_cdp_common_utils-1.2.3-py3-none-any.whl"
-  }
-  ma_hospital_master = {
-    script_location = "s3://ap-aurora-cdp-tooling-dev-cn-north-1/glue/v1.2.3/hospital.py"
-    max_dpus        = 4
-    timeout         = 30
-    schedule        = "cron(0 17 * * ? *)"                  # 核心意图：错峰避免源库压力叠加
-    extra_py_files  = "s3://ap-aurora-cdp-tooling-dev-cn-north-1/glue/aurora_cdp_common_utils-1.2.3-py3-none-any.whl"
-  }
-}
+```bash
+# 示意：develop 仓 plan —— 故意不带 iam-all
+terraform plan \
+  -var-file=environments/dev/dev-all.tfvars \
+  -var-file=environments/dev/glue-all.tfvars \
+  -var-file=environments/dev/lambda-all.tfvars \
+  -var-file=environments/dev/step-functions-all.tfvars \
+  -var-file=environments/dev/eventbridge-all.tfvars
 ```
 
-`{env}-all.tfvars` 承载环境级全局参数，所有服务 tfvars 共享：
-
 ```hcl
-# 示意：business-domain-ma/dev-all.tfvars —— 环境级全局参数
-environment = "dev"
-region      = "cn-north-1"
-account_id  = "123456789012"
-prefix      = "ap-aurora-cdp"                               # 核心意图：统一命名前缀
-cost_center = "ma-domain"
+# 示意：glue-all.tfvars（嵌套 map，脱敏）
+glue_jobs = {
+  ma_doctor_master = {
+    script_location = "s3://aurora-tooling-dev/glue/ma/doctor/1.2.3/job.py"
+    max_capacity    = 6
+    timeout         = 45
+    schedule        = "cron(0 16 * * ? *)"   # 错峰，降低源库尖峰
+    default_arguments = {
+      "--extra-py-files" = "s3://aurora-tooling-dev/wheels/aurora_common-1.2.3-py3-none-any.whl"
+    }
+  }
+}
 ```
 
 ### 按服务拆分的好处
@@ -96,13 +89,13 @@ linkStyle default stroke:#697077,stroke-width:2px
 <p class="caption" markdown="span">**图 25-2** 按服务拆分的好处</p>
 
 !!! tip "引申"
-    按服务拆分 tfvars 是"变更检测驱动 CI"的基础——CI 通过 :octicons-terminal-16: `git diff` 检测哪些 tfvars 变了，只对变更的服务执行 :simple-terraform: Terraform plan/apply。这比"每次都 plan 全部"快得多。
+    拆分是变更检测的前提（[Ch 27](./27-CI-CD可复用工作流平台.md)）：`git diff` 只看到 `glue-all.tfvars` 动了，矩阵就只扩 Glue 相关 target，省掉二十分钟全量 plan。我在专利数据项目吃过"单文件巨型 tfvars"的亏，merge conflict 周周来；拆开之后冲突面立刻窄了（M11 / M12）。
 
 ---
 
 ## 25.2 运行时配置 vs 部署参数的边界
 
-这是 [Ch 11](./11-配置与状态管理.md) 核心设计决策在 tfvars 层的体现：
+这是 [Ch 11](./11-配置与状态管理.md) 落到 tfvars 层的边界：
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
@@ -130,14 +123,13 @@ linkStyle default stroke:#697077,stroke-width:2px
 | 维度 | Terraform tfvars | DynamoDB 配置 |
 |---|---|---|
 | **回答** | "在哪跑、用什么资源" | "做什么、怎么处理" |
-| **变更方式** | Terraform plan/apply | 配置发布流（热更新） |
-| **生效时机** | 部署时 | 运行时 |
-| **审批** | 需 plan review | 配置发布审批 |
+| **变更方式** | plan/apply | 配置发布流（热更新） |
+| **生效时机** | 部署时 | 下次任务读取时 |
+| **审批** | plan review | 配置发布审批 |
 <p class="caption" markdown="span">**表 25-2** 运行时配置 vs 部署参数的边界</p>
 
-
 !!! warning "Trade-off"
-    边界划分的关键判据是"这个参数变更是否需要重建 AWS 资源"。如果需要（如改 DPU、改 IAM）→ Terraform；如果不需要（如改字段映射、改加载模式）→ DynamoDB。错误地把运行时配置放进 Terraform 会导致"改个字段映射也要走 Terraform apply"的沉重流程。
+    判据很简单：这次变更要不要重建或原地更新 AWS 资源。DPU、IAM、脚本 S3 路径、cron 走 Terraform；字段映射、合并策略走 DynamoDB。灰区是"脚本版本号"：它像配置，又指向制品。我们放进 tfvars，是为了和 [Ch 28](./28-四类发布流.md) 的 Glue 制品晋升对齐——版本晋升本身是受控部署，不是运行时随手改指针。反例也有：有人把字段映射塞进 tfvars，改一列映射就得走完整 apply，业务恨死平台。那次我强制迁回 DynamoDB（M1 / M6）。
 
 ---
 
@@ -147,9 +139,9 @@ linkStyle default stroke:#697077,stroke-width:2px
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
 flowchart LR
  subgraph tfbackend["每环境独立 tfbackend"]
- DEV_BE[dev.tfbackend<br/>key: dev/terraform.tfstate]
- QA_BE[qa.tfbackend<br/>key: qa/terraform.tfstate]
- PROD_BE[prod.tfbackend<br/>key: prod/terraform.tfstate]
+ DEV_BE[dev.tfbackend<br/>独立桶 + lock]
+ QA_BE[qa.tfbackend<br/>独立桶 + lock]
+ PROD_BE[prod.tfbackend<br/>独立桶 + lock]
  end
 classDef bpProcess fill:#edf5ff,stroke:#0f62fe,stroke-width:2px,color:#161616
 class DEV_BE,PROD_BE,QA_BE bpProcess
@@ -157,39 +149,41 @@ linkStyle default stroke:#697077,stroke-width:2px
 ```
 <p class="caption" markdown="span">**图 25-4** 后端配置多环境隔离</p>
 
-每个环境有独立的 `tfbackend` 文件，指向 S3 上不同 key 的 state 文件。这实现了 state 的物理隔离——一个环境的 state 损坏不影响其他环境。
+每个环境一份 `*.tfbackend`，在 `terraform init -backend-config=...` 时注入空 `backend "s3" {}`（[Ch 21](./21-Terraform架构总览.md)）。关键的不是 key 怎么切，是桶要不要分开。
 
-这里有一个我在 [Ch 21](./21-Terraform架构总览.md) 提过但值得在此深化的细节——**dev 和 prod 用的是独立的 S3 桶**，不是同一个桶的不同 key。最初我用"同桶不同 key"（`tfstate-bucket/dev/` 和 `tfstate-bucket/prod/`），看起来够隔离。但第二年发生了一件事让我改成了独立桶：dev 环境的一个 CI 脚本误删了整个 tfstate 桶（`aws s3 rm --recursive` 少了 `--exclude`），连 prod 的 state 也一起删了——因为它们在同一个桶里。从那以后我坚持"dev 和 prod 的 state 存独立桶"——dev 桶炸了碰不到 prod 桶。**桶级隔离比 key 级隔离更强——一个 `aws s3 rm` 命令误删桶时，只影响一个环境**。这个教训让我对"隔离强度"有了更深的理解：key 级隔离防的是"逻辑混淆"，桶级隔离防的是"物理误删"——后者更危险，必须更强隔离。
+第二年，dev CI 脚本一次 `aws s3 rm --recursive` 少了 exclude，把整个 tfstate 桶清空。当时 dev/prod 还同桶不同 key，prod state 一起没了。恢复靠版本控制和备份；那几小时我站在战争室里，脑子里只剩一句：隔离强度不够。从那以后：
+
+- dev / qa / prod **独立 state 桶**
+- **独立 DynamoDB 锁表**
+- 桶策略禁止人用长期密钥做递归删除；删除需打断玻璃角色
 
 ```hcl
-# 示意：dev.tfbackend —— DEV 环境 state 后端配置
-bucket         = "ap-aurora-cdp-tfstate-dev-cn-north-1"
-key            = "dev/terraform.tfstate"                     # 核心意图：每环境独立 key，物理隔离
+# 示意：dev.tfbackend / prod.tfbackend —— 字段齐全，值均虚构
+# dev
+bucket         = "aurora-tfstate-dev"
+key            = "domain-ma/terraform.tfstate"
 region         = "cn-north-1"
-dynamodb_table = "ap-aurora-cdp-tflock-dev"                  # DynamoDB 锁，防并发 apply
+dynamodb_table = "aurora-tfstate-lock-dev"
+encrypt        = true
+
+# prod —— 另一个桶，另一个锁表
+bucket         = "aurora-tfstate-prod"
+key            = "domain-ma/terraform.tfstate"
+region         = "cn-north-1"
+dynamodb_table = "aurora-tfstate-lock-prod"
 encrypt        = true
 ```
 
-```hcl
-# 示意：prod.tfbackend —— PROD 环境 state 后端（独立桶 + 独立锁表）
-bucket         = "ap-aurora-cdp-tfstate-prod-cn-north-1"
-key            = "prod/terraform.tfstate"
-region         = "cn-north-1"
-dynamodb_table = "ap-aurora-cdp-tflock-prod"
-encrypt        = true
-```
-
-注意 dev 和 prod 的 `bucket` 名不同——独立桶，不是一个桶的两个 key。DynamoDB 锁表也是独立的（`tflock-dev` vs `tflock-prod`），防止一个环境的 lock 故障影响另一个环境。**隔离要从桶到锁表全面独立，不能只隔 state 文件**。
+key 级隔离防的是逻辑混淆；桶级隔离防的是物理误删。后者才是 IaC 事故真正要命的地方。参数和后端就绪后，编排层还缺一块：Step Functions 的 ASL 怎么按环境注入账号与 ARN。下一章。
 
 ---
 
 ## :material-check-circle: 本章小结
-- tfvars 按服务拆分：`{env}-all.tfvars` 全局 + 按服务（glue/lambda/sf/eb/...）拆分——支持精准变更检测；含 `glue-all.tfvars` 真实片段（版本化脚本路径/cron/依赖包）
-- 运行时配置（DynamoDB）vs 部署参数（Terraform）边界：需重建资源的 → Terraform，运行时可热更的 → DynamoDB
-- 每环境独立 tfbackend（含 HCL 示意：独立桶 + 独立 key + DynamoDB 锁），state 物理隔离
+- tfvars 分层：`{env}-all` + 按服务拆分；develop plan 不带 `iam-all`
+- 部署参数 vs 运行时配置：看要不要动 AWS 资源，并和四类发布流对齐
+- state 后端按环境独立桶与锁表；隔离强度来自误删事故
 
 ---
 
 !!! quote "下一章"
     [Ch 26 Step Functions 模板注入](./26-StepFunctions模板注入.md) —— 参数管好了，状态机模板怎么参数化？接下来看模板注入设计。
-

@@ -70,7 +70,7 @@ mkdir -p .claude/humanize-logs
 {
   "started": "ISO timestamp",
   "status": "in_progress",
-  "target": "Ch 0-Ch 53 + Appendix A-G",
+  "target": "Ch 0-Ch 55 + Appendix A-G",
   "current_chapter": 1,
   "current_part": "Part I",
   "completed": [],
@@ -201,9 +201,9 @@ mkdir -p .claude/humanize-logs
 | 5 | Part IV (Ch 21–30) | 10 | 31/61 (51%) |
 | 6 | Part V (Ch 31–34) | 4 | 35/61 (57%) |
 | 7 | Part VI (Ch 35–37) | 3 | 38/61 (62%) |
-| 8 | Part VII (Ch 38–47) | 10 | 48/61 (79%) |
-| 9 | Part VIII (Ch 48–52) | 5 | 53/61 (87%) |
-| 10 | Ch 53 致谢 | 1 | 54/61 (89%) |
+| 8 | Part VII (Ch 38–49) | 12 | 48/61 (79%) |
+| 9 | Part VIII (Ch 50–52) | 5 | 53/61 (87%) |
+| 10 | Ch 55 致谢 | 1 | 54/61 (89%) |
 | 11 | 附录 A–G | 7 | 61/61 (100%) |
 
 **Part 边界里程碑**：每完成一个 Part 打印进度。

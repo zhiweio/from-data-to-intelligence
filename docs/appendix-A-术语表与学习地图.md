@@ -12,8 +12,8 @@
 | 术语 | 英文 | 定义 | 首次出现 |
 |---|---|---|---|
 | CDP | Customer/Corporate Data Platform | 企业数据平台，覆盖全业务域的数据摄取/加工/治理/激活 | Ch 1 |
-| 数据湖 | Data Lake | 分层对象存储（Landing/Raw/Enriched），存储原始到加工数据 | Ch 7 |
-| Medallion 架构 | Medallion Architecture | 铜(Landing)/银(Raw)/金(Enriched)三层数据湖分层 | Ch 7 |
+| 数据湖 | Data Lake | 分层对象存储（Landing/Raw；Gold 在 Redshift），存储原始到分析就绪数据 | Ch 7 |
+| Medallion 架构 | Medallion Architecture | 铜(Landing)/银(Raw)在湖；金(`enriched_*`)在仓——演进自三层全落 S3 | Ch 7 |
 | 数据仓库 | Data Warehouse (DWH) | 列式分析数据库（Redshift），结构化查询服务 | Ch 8 |
 | 配置驱动 | Config-Driven | 任务行为由配置声明决定，代码为通用引擎 | Ch 11 |
 | 批次标识 | Batch ID / Load ID | 每次数据加载的唯一标识，贯穿全链路用于追溯 | Ch 11 |
@@ -59,12 +59,19 @@
 | 数据平面 | Data Plane，执行层（Redshift Serverless） | Ch 46 |
 | R/V/G/D 四引擎 | 关系/向量/图/few-shot 四引擎 RAG 检索 | Ch 41 |
 | 术语绑定 | Term Binding，业务术语→技术资产全链路传播 | Ch 41 |
-| Steiner 树 | 求连接终端节点的最小代价子树（join 路径规划） | Ch 43 |
+| Steiner 树 | 实验性 join 路径规划：求连接终端表的最小代价子树（面向单域上千表复杂 BI） | Ch 43 |
+| NewtonData | Agentic BI POC（语义资产 → NL2SQL；小业务域内部试用） | Ch 38–46, 49 |
+| LumenKB | 多模态业务知识库 POC（Knowhere × PixelRAG） | Ch 47 |
+| FieldGenie | 一线产品助手（流式答 + 引用 + 产品卡） | Ch 48 |
+| Knowhere | Ontos-AI 文档解析与语义结构化 memory | Ch 47 |
+| knowhere-parse-sdk | Knowhere 核心解析的进程内 SDK（合规驻留） | Ch 47 |
+| PixelRAG | 视觉 tile RAG（扫描件/图表/版式） | Ch 47 |
+| 语义树锚点 | 视觉命中回挂文档章节 path 的元数据字段 | Ch 47 |
 | 鸿沟陷阱 | Chasm Trap，一对多 join 后聚合导致重复计数 | Ch 43 |
 | 五层护栏 | 语法/策略/AST/术语/成本 五层 SQL 校验 | Ch 44 |
 | 四层记忆 | Working/Profile/Episodic/Correction 记忆系统 | Ch 45 |
-| MCP | Model Context Protocol，AI 工具标准协议 | Ch 45 |
-| LLM-as-a-Judge | 用 LLM 评估 LLM 输出质量 | Ch 47 |
+| MCP | Model Context Protocol，AI 工具标准协议 | Ch 45, 48 |
+| LLM-as-a-Judge | 用 LLM 评估 LLM 输出质量 | Ch 49 |
 
 ### 治理术语
 

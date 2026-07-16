@@ -93,13 +93,16 @@ flowchart TB
         ch42 --> ch44("44. SQL 护栏")
         ch42 --> ch45("45. 记忆与工具")
         ch39 --> ch46("46. CDP 整合")
-        ch42 --> ch47("47. 评估可观测")
+        ch46 --> ch47("47. LumenKB 多模态知识库")
+        ch47 --> ch48("48. FieldGenie 一线助手")
+        ch48 --> ch49("49. 评估可观测")
+        ch45 -.-> ch48
     end
 
     %% ===== Part VIII: 治理复盘 =====
     subgraph P8["<b>Part VIII · 治理复盘</b>"]
         direction LR
-        ch48("48. 安全合规") --> ch49("49. 监控审计") --> ch50("50. 排障实战") --> ch51("51. 价值度量") --> ch52("52. 架构师复盘")
+        ch50("50. 安全合规") --> ch51("51. 监控审计") --> ch52("52. 排障实战") --> ch53("53. 价值度量") --> ch54("54. 架构师复盘")
     end
 
     %% ===== 跨 Part 依赖 =====
@@ -129,8 +132,8 @@ flowchart TB
     class ch21,ch22,ch23,ch24,ch25,ch26,ch27,ch28,ch29,ch30 bpDecision
     class ch31,ch32,ch33,ch34 bpDecision
     class ch35,ch36,ch37 bpDecision
-    class ch38,ch39,ch40,ch41,ch42,ch43,ch44,ch45,ch46,ch47 bpInfo
-    class ch48,ch49,ch50,ch51,ch52 bpError
+    class ch38,ch39,ch40,ch41,ch42,ch43,ch44,ch45,ch46,ch47,ch48,ch49 bpInfo
+    class ch50,ch51,ch52,ch53,ch54 bpError
 
     class P1,P2,P3,P4,P5,P6,P7,P8 bpGroup
     linkStyle default stroke:#697077,stroke-width:2px
@@ -149,7 +152,7 @@ flowchart TB
 1. [前言](./00-preface.md) → [Ch 1 医药数据困局](./01-数字化转型下的医药数据困局.md) → [Ch 2 平台蓝图](./02-从需求到蓝图：一个数据平台的诞生.md)
 2. [Ch 4 五层模型](./04-平台五层模型与设计哲学.md) → [Ch 5 数据流全景](./05-端到端数据流全景.md) → [Ch 8 数据仓库设计](./08-数据仓库设计-Redshift.md) → [Ch 10 编排调度](./10-编排与调度设计-StepFunctions与EventBridge.md)
 3. [Ch 21 :simple-terraform: Terraform 架构](./21-Terraform架构总览.md) → [Ch 27 CI/CD 平台](./27-CI-CD可复用工作流平台.md)
-4. [Ch 38 AI-Ready 数据供应](./38-时代命题-AI-Ready数据供应.md) → [Ch 39 Agentic BI 架构](./39-Agentic-BI架构总览.md) → [Ch 52 架构师复盘](./52-架构师的复盘-取舍遗憾与主流对比.md)
+4. [Ch 38 AI-Ready 数据供应](./38-时代命题-AI-Ready数据供应.md) → [Ch 39 Agentic BI 架构](./39-Agentic-BI架构总览.md) → [Ch 54 架构师复盘](./54-架构师的复盘-取舍遗憾与主流对比.md)
 
 ### :material-wrench: 工程师路径（理解"怎么开发"）
 
@@ -157,8 +160,8 @@ flowchart TB
 
 1. [前言](./00-preface.md) → [Ch 3 技术栈全景](./03-技术栈全景与预备知识.md)
 2. [Ch 11 配置与状态管理](./11-配置与状态管理.md) → [Ch 12 任务模型](./12-配置驱动的任务模型.md) → [Ch 13 连接器框架](./13-连接器框架总览.md)
-3. [Ch 14-16 三类连接器](./14-数据库与JDBC连接器.md) → [Ch 17 三层开发](./17-Landing到Raw到Enriched开发实战.md) → [Ch 19 开发配方](./19-任务开发配方与实战案例.md)
-4. [Ch 28 四类发布流](./28-四类发布流.md) → [Ch 30 工程师工作流](./30-工程师日常工作流与变更场景.md) → [Ch 50 排障实战](./50-排障与可观测性实战.md)
+3. [Ch 14-16 三类连接器](./14-数据库与JDBC连接器.md) → [Ch 17 两跳开发](./17-Landing到Raw到Redshift开发实战.md) → [Ch 19 开发配方](./19-任务开发配方与实战案例.md)
+4. [Ch 28 四类发布流](./28-四类发布流.md) → [Ch 30 工程师工作流](./30-工程师日常工作流与变更场景.md) → [Ch 52 排障实战](./52-排障与可观测性实战.md)
 
 ### :material-truck-fast: 迁移负责人路径（理解"如何迁移与协同"）
 
@@ -174,7 +177,7 @@ flowchart TB
 1. [Ch 38 AI-Ready 数据供应](./38-时代命题-AI-Ready数据供应.md) → [Ch 39 Agentic BI 架构](./39-Agentic-BI架构总览.md)
 2. [Ch 40 语义平面](./40-语义平面-三层治理与Git-YAML.md) → [Ch 41 四引擎 RAG](./41-RVGD四引擎RAG检索.md) → [Ch 42 Agent 编排](./42-Agent编排-LangGraph与状态机.md)
 3. [Ch 43 查询规划器](./43-语义查询规划器-Steiner树与代数改写.md) → [Ch 44 SQL 护栏](./44-五层SQL护栏与执行安全.md) → [Ch 45 记忆与工具](./45-记忆系统与工具使用.md)
-4. [Ch 46 CDP 整合](./46-数据平面与CDP整合.md) → [Ch 47 评估可观测](./47-评估-可观测与持续演进.md)
+4. [Ch 46 CDP 整合](./46-数据平面与CDP整合.md) → [Ch 47 多模态知识库](./47-多模态业务知识库-Knowhere与PixelRAG与LumenKB.md) → [Ch 48 FieldGenie](./48-一线产品助手-FieldGenie与MCP增强.md) → [Ch 49 评估可观测](./49-评估-可观测与持续演进.md)
 
 ---
 
@@ -208,7 +211,7 @@ flowchart TB
 - [Ch 14 数据库与 JDBC 连接器](./14-数据库与JDBC连接器.md)
 - [Ch 15 文件与 S3 连接器](./15-文件与S3连接器.md)
 - [Ch 16 API、SaaS 与邮件连接器](./16-API-SaaS与邮件连接器.md)
-- [Ch 17 Landing→Raw→Enriched 开发实战](./17-Landing到Raw到Enriched开发实战.md)
+- [Ch 17 Landing→Raw→Redshift 开发实战](./17-Landing到Raw到Redshift开发实战.md)
 - [Ch 18 数据脱敏与隐私治理](./18-数据脱敏与隐私治理.md)
 - [Ch 19 任务开发配方与实战案例](./19-任务开发配方与实战案例.md)
 - [Ch 20 元数据管理与数据血缘](./20-元数据管理与数据血缘.md)
@@ -239,7 +242,7 @@ flowchart TB
 - [Ch 36 低代码 + 云混合：零售数据源门户](./36-低代码与云混合-零售数据源门户.md)
 - [Ch 37 数据即服务（DaaS）：激活层设计](./37-数据即服务-DaaS激活层设计.md)
 
-### Part VII Data + AI 转型：从数据平台到 Agentic BI
+### Part VII Data + AI 转型：方向探索与 POC（Agentic BI + 多模态知识库）
 
 - [Ch 38 时代命题：AI-Ready 数据供应](./38-时代命题-AI-Ready数据供应.md)
 - [Ch 39 Agentic BI 架构总览](./39-Agentic-BI架构总览.md)
@@ -250,16 +253,18 @@ flowchart TB
 - [Ch 44 五层 SQL 护栏与执行安全](./44-五层SQL护栏与执行安全.md)
 - [Ch 45 记忆系统与工具使用](./45-记忆系统与工具使用.md)
 - [Ch 46 数据平面与 CDP 整合](./46-数据平面与CDP整合.md)
-- [Ch 47 评估、可观测与持续演进](./47-评估-可观测与持续演进.md)
+- [Ch 47 多模态业务知识库：Knowhere × PixelRAG 与 LumenKB](./47-多模态业务知识库-Knowhere与PixelRAG与LumenKB.md)
+- [Ch 48 一线产品助手：FieldGenie 与 MCP 增强 Agentic BI](./48-一线产品助手-FieldGenie与MCP增强.md)
+- [Ch 49 评估、可观测与持续演进](./49-评估-可观测与持续演进.md)
 
 ### Part VIII 治理、运维与价值复盘
 
-- [Ch 48 安全、合规与治理](./48-安全-合规与治理.md)
-- [Ch 49 日志、监控、审计与告警](./49-日志-监控-审计与告警.md)
-- [Ch 50 排障与可观测性实战](./50-排障与可观测性实战.md)
-- [Ch 51 价值度量与案例复盘](./51-价值度量与案例复盘.md)
-- [Ch 52 架构师的复盘：取舍、遗憾与主流对比](./52-架构师的复盘-取舍遗憾与主流对比.md)
-- [Ch 53 致谢与团队](./53-致谢与团队.md)
+- [Ch 50 安全、合规与治理](./50-安全-合规与治理.md)
+- [Ch 51 日志、监控、审计与告警](./51-日志-监控-审计与告警.md)
+- [Ch 52 排障与可观测性实战](./52-排障与可观测性实战.md)
+- [Ch 53 价值度量与案例复盘](./53-价值度量与案例复盘.md)
+- [Ch 54 架构师的复盘：取舍、遗憾与主流对比](./54-架构师的复盘-取舍遗憾与主流对比.md)
+- [Ch 55 致谢与团队](./55-致谢与团队.md)
 
 ### 附录
 

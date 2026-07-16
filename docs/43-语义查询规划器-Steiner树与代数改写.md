@@ -2,7 +2,7 @@
 !!! info "面包屑"
     [本书主页](./index.md) › [Part VII Data+AI 转型](./42-Agent编排-LangGraph与状态机.md) › Ch 43
 
-!!! abstract "项目第 4 年 · Data+AI 转型期——查询规划器攻坚"
+!!! abstract "项目第 4 年 · Data+AI POC——实验性查询规划器"
 
 ---
 
@@ -14,13 +14,15 @@
 
 ---
 
-这一章是全书技术难度最高的一章——它讲的是"AI 怎么知道该 join 哪些表"。
+这一章是全书技术难度最高的一章，讲的是"AI 怎么知道该 join 哪些表"。也请先读定位：**Steiner 树规划器在 NewtonData 里是实验性功能**，不是 POC 主路径上的必选项。
+
+CDP 平台里，**单个业务域就可以堆到上千张表**：雪花/桥接表多，join 图稠密。复杂 BI 分析一旦让 LLM 自己猜路径，要么扇出重复计数，要么多 join 拖垮执行。我们想验证：能不能在 LLM 写 SQL 之前，用图论先裁一棵最小代价 join 子图，把搜索空间压住？POC 选了较小业务域先跑通体验；Steiner 这套则是面向"上千表域"的 join 正确性与性能探索。NetworkX 的近似 Steiner（Kou / Mehlhorn）能在多项式时间内给出有界近似，适合当实验节点挂进 LangGraph 条件边，用开关控制是否启用。
 
 Agentic BI 建设初期，这个问题让我吃了大亏。最初版本 NL2SQL 流程很简单：RAG 检索表结构 → LLM 生成 SQL → 执行。简单查询（"上个月总处方量"）还行，但用户问复杂问题——"华东区 CardioBrand-A 上月处方量按医院等级分布"——LLM 经常 join 错。要么 join 多余的表，扇出；要么 join 顺序不对，掉进鸿沟陷阱（重复计数）；要么漏掉必须的维度表。
 
-根子在于：join 路径选择不是"文本生成"能解决的问题，它是个图论问题。数仓里的表间关系本来就构成图——用户问题涉及的表是节点，连接它们的最优路径就是 Steiner 树。让 LLM "猜" join，不如用算法算出来。
+根子在于：join 路径选择不是"文本生成"能解决的问题，它是个图论问题。数仓里的表间关系本来就构成图：用户问题涉及的表是节点，连接它们的最优路径就是 Steiner 树。让 LLM "猜" join，不如用算法算出来。
 
-想通这一点后，我决定在 LLM 生成 SQL 之前塞一个语义查询规划器：先用图论算法算出最优 join 子图，再让 LLM 在这个已规划好的路径上写 SQL。这把 NL2SQL 的可靠性抬了一个数量级。
+想通这一点后，我决定在 LLM 生成 SQL 之前塞一个语义查询规划器：先用图论算法算出最优 join 子图，再让 LLM 在这个已规划好的路径上写 SQL。POC 小域里它能提复杂查询准确率；外推到全平台上千表域，仍要当实验能力持续验证。代数改写（鸿沟陷阱、冗余连接、EXISTS）才是更稳的主路径兜底。
 
 !!! tip "引申：为什么 join 是 NL2SQL 的最大难点？"
     自然语言里，"join"对应的是关系推理——用户说"华东区 CardioBrand-A 的处方量"，AI 得推出：处方量在事实表，区域和药品在维度表，三者靠外键关联。这对人来说很直觉，但对 LLM 极难——它需要同时消化表结构、外键关系和业务语义。而且 join 路径不止一条（直接 join 或过中间表），选错路径轻则性能差，重则结果错误。这就是为什么我们拿图论算法来解 join 路径选择，而不是靠 LLM 推理。
@@ -35,7 +37,7 @@ flowchart LR
  S1@{ icon: "codicon:sparkle", form: "rounded", label: Prompt-only<br/>直接让 LLM 生成, pos: "b", h: 36 }
  S2@{ icon: "codicon:search", form: "rounded", label: Schema-aware<br/>检索表结构辅助, pos: "b", h: 36 }
  S3@{ icon: "codicon:sparkle", form: "rounded", label: 约束解码<br/>约束 LLM 只生成合法 token, pos: "b", h: 36 }
- S4@{ icon: "codicon:graph", form: "rounded", label: 语义中间层<br/>Steiner 树规划+代数改写<br/>NewtonData 方案, pos: "b", h: 36 }
+ S4@{ icon: "codicon:graph", form: "rounded", label: 语义中间层<br/>Steiner 树（实验）+代数改写<br/>NewtonData POC, pos: "b", h: 36 }
  end
 
  S1 --> S2 --> S3 --> S4
@@ -66,6 +68,10 @@ linkStyle default stroke:#697077,stroke-width:2px
 ---
 
 ## 43.2 KMB Steiner 树求最小代价 join 子图
+
+!!! warning "实验性能力 · Trade-off"
+    Steiner 树规划器是 **POC 中的实验性功能**，用来探索：当 CDP **单个业务域表规模上到上千张**、复杂 BI 分析要跨多事实/桥接表时，如何压缩 join 搜索空间，并兼顾路径正确性与执行性能。它不是标准 Kimball 星型（事实居中、维度直连）下的必选项；那种模型路径本就短，语义层声明 join 往往够用。真正稳的主路径兜底，仍是三种代数改写（鸿沟陷阱、冗余连接消除、EXISTS）和语义层声明的 join。NetworkX 提供 Kou / Mehlhorn 近似（有界近似比），适合作为可开关节点。生产是否默认开启，要看域规模与评测，不能把 POC 小域的增益直接外推到全平台。
+
 ### 问题
 
 用户问"华东区 CardioBrand-A 上月处方量趋势"——涉及 `dim_hospital`（区域）、`dim_product`（药品）、`fact_prescription`（处方事实）、`dim_date`（日期）。数仓中可能有多条 join 路径连接这些表，规划器需要找到**最小代价**的 join 子图。
@@ -449,7 +455,7 @@ def classify_and_heal(error: str, state: AgentState) -> dict:
 ```
 
 !!! tip "引申"
-    幻觉分类学的价值在于"对症下药"——幻觉列靠检索纠错（成功率最高，90%+），幻觉值靠术语绑定，幻觉 join 靠规划器重算，幻觉聚合靠规则约束。把幻觉从"LLM 的随机错误"变成"可分类、可针对性修复的工程问题"，是 NewtonData 自愈成功率做到 ~70% 的关键（详见 [Ch 47](./47-评估-可观测与持续演进.md) 基准评测）。
+    幻觉分类学的价值在于"对症下药"——幻觉列靠检索纠错（成功率最高，90%+），幻觉值靠术语绑定，幻觉 join 靠规划器重算，幻觉聚合靠规则约束。把幻觉从"LLM 的随机错误"变成"可分类、可针对性修复的工程问题"，是 NewtonData 自愈成功率做到 ~70% 的关键（详见 [Ch 49](./49-评估-可观测与持续演进.md) 基准评测）。
 
 ---
 
@@ -494,10 +500,10 @@ linkStyle default stroke:#697077,stroke-width:2px
 
 ## :material-check-circle: 本章小结
 - NL2SQL 四阶段：Prompt-only → Schema-aware → 约束解码 → 语义中间层（规划器+改写）
-- KMB Steiner 树：把"join 路径选择"从"LLM 猜"变为"图论算法算"——目标函数 `min Σ w(e)`（NP-hard，KMB 近似，四步：度量闭包→MST→替换边→重建子树），networkx 一行调用
-- 三种代数改写：鸿沟陷阱（聚合前置，SQL before/after）/ 冗余连接消除（条件下推去 join）/ 存在语义（EXISTS 替代 DISTINCT+JOIN）
-- LLM 幻觉分类学：幻觉列（检索纠错）/ 幻觉值（术语绑定）/ 幻觉 join（Steiner 重算）/ 幻觉聚合（规则约束）——分类治理使自愈成功率 ~70%
-- 三大经典陷阱：鸿沟陷阱（重复计数）/ 扇出陷阱（行数膨胀）/ 幻觉列（不存在的列名）——NewtonData 用规划器+护栏分别应对
+- **Steiner 树为实验性能力**：面向 CDP 单域上千表复杂 BI 的 join 路径/性能探索；POC 小域可验证增益，非主路径必选项；NetworkX Kou/Mehlhorn 近似可开关挂入编排
+- 主路径兜底仍是三种代数改写：鸿沟陷阱（聚合前置）/ 冗余连接消除 / 存在语义（EXISTS）
+- LLM 幻觉分类学：幻觉列 / 幻觉值 / 幻觉 join / 幻觉聚合——分类治理支撑自愈
+- 三大经典陷阱：鸿沟陷阱 / 扇出陷阱 / 幻觉列——规划器（实验）+ 护栏分别应对
 
 ---
 

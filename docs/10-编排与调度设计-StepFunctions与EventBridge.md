@@ -18,9 +18,9 @@
 
 编排引擎是数据平台的"神经系统"——它决定"哪个任务先跑、哪个后跑、失败了怎么办"。这个决策在项目第 0 年引发了最激烈的争论。
 
-Aurora 的数据工程团队里有几个人之前用过 Airflow，强烈建议"用 Airflow，社区成熟、:simple-python: Python 灵活、DAG 好写"。我理解他们的偏好——Airflow 确实是当时数据工程领域的事实标准。但我的顾虑是：Airflow 需要自己维护一个服务器集群（Worker/Scheduler/WebServer），而我们的平台设计理念是"尽量 Serverless、零运维"。另外，Aurora 的数据流以"事件驱动"为主（文件到达即处理），而 Airflow 的核心是"定时调度"，事件驱动需要额外插件。
+Aurora 的数据工程团队里有几个人之前用过 Airflow，强烈建议"用 Airflow，社区成熟、:simple-python: Python 灵活、DAG 好写"。我理解他们的偏好。Airflow 确实是当时数据工程领域的事实标准。但我的顾虑要诚实说清楚：当时有人把 Airflow 等同于"自建 Worker/Scheduler/WebServer"。这在 2022 年不完全对，因为 **MWAA（Managed Workflows for Apache Airflow）在 AWS China 已可用**，托管选项存在。真正让我倾向 Step Functions 的，不是"Airflow 一定要自建服务器"，而是这几条：平台以事件驱动为主（文件到达即处理），Step Functions 与 EventBridge/S3 事件原生衔接；Direct Service Integration 可直接调 Glue/Lambda，少一层 Operator；按状态转换计费，空闲不付 worker 实例费。MWAA 即使托管，空闲 worker 仍计费。
 
-最终我们选了 Step Functions。不是因为 Step Functions 比 Airflow"更好"——它们各有优劣——而是因为它更匹配平台的"Serverless + 事件驱动 + AWS 原生"设计哲学。这个决策的 trade-off 后面展开。
+最终我们选了 Step Functions。不是因为它比 Airflow"更好"，两者各有优劣，而是因为它更匹配当时平台的"Serverless + 事件驱动 + AWS 原生"约束。下面展开这个取舍，并补上 Standard/Express、256KB payload、与 MWAA 的对比。
 
 ---
 
@@ -53,18 +53,23 @@ linkStyle default stroke:#697077,stroke-width:2px
 
 | 维度 | Step Functions | Airflow |
 | --- | --- | --- |
-| **部署模式** | Serverless（AWS 托管） | 需自建/托管服务器 |
-| **触发方式** | 事件驱动（S3/EventBridge/API） | 定时为主（事件触发需插件） |
+| **部署模式** | Serverless（AWS 托管） | 自建或 MWAA 托管 |
+| **触发方式** | 事件驱动（S3/EventBridge/API） | 定时为主（事件触发需插件/传感器） |
 | **定义方式** | :simple-json: JSON/CDK 声明式 | Python 代码（DAG） |
 | **灵活性** | 中（声明式约束） | 高（Python 任意逻辑） |
-| **AWS 集成** | 原生深度集成 | 需 Operator 适配 |
-| **运维负担** | 零（Serverless） | 中（需维护 Airflow 实例） |
-| **计费** | 按状态转换次数 | 按服务器运行时长 |
+| **AWS 集成** | 原生 Direct Integration | Operator / Hook 适配 |
+| **运维负担** | 零（Serverless） | 自建高；MWAA 中（仍付 worker） |
+| **计费** | 按状态转换次数 | 按服务器/worker 运行时长 |
 <p class="caption" markdown="span">**表 10-1** 为什么是 Step Functions 而非 Airflow：事件驱动 + Serverless 的取舍</p>
 
 
 !!! warning "Trade-off"
     Step Functions 的核心优势是 Serverless + 原生 AWS 集成——零运维、事件驱动、与 Glue/Lambda/S3 无缝衔接。代价是表达力不如 Airflow 的 Python DAG 灵活。对于"以 AWS 为基础、事件驱动为主"的平台，Step Functions 是更自然的选择。如果团队已有 Airflow 经验且需要复杂编排逻辑，Airflow 也是合理选择。
+
+!!! info "Step Functions 的几个工程细节"
+    - **Standard vs Express Workflow**：Standard 支持最长 1 年执行、按状态转换计费（$25/百万次）、Exactly-once、90 天执行历史；Express 最长 5 分钟、按调用次数+时长计费（$1/百万次）、At-least-once。本书 Ingestion 状态机跑 Glue Job（小时级）用 Standard；高频短任务（如信号文件校验）可用 Express 降本。
+    - **256KB payload 限制**：Standard Workflow 单步输入/输出上限 256KB，整个执行的 payload 累计也是 256KB。大配置必须放 S3 引用（state 传 S3 key），不能直接塞进状态机输入。
+    - **MWAA 对比**：Amazon MWAA（Managed Workflows for Apache Airflow）在 AWS China 已可用，是托管 Airflow 选项。本书选 Step Functions 而非 MWAA 的真实原因是：Step Functions 与 AWS 原生服务集成更深（Direct Service Integration）、零运维、按用量计费；MWAA 需付 worker 实例费（即使空闲）、与 AWS 服务的集成靠 Operator 间接调用。
 
 ---
 
@@ -102,24 +107,23 @@ stateDiagram-v2
     Trigger --> ReadConfig: Lambda 读取配置
     ReadConfig --> Landing: Glue 摄取到 Landing
     Landing --> Raw: Glue 标准化到 Raw
-    Raw --> Enriched: Glue 加工到 Enriched
-    Enriched --> CopyToRS: Glue COPY 到 Redshift
-    CopyToRS --> WriteStatus: Lambda 回写状态
+    Raw --> SqlEltToRS: Data API SQL ELT 入仓
+    SqlEltToRS --> WriteStatus: Lambda 回写状态
     WriteStatus --> [*]
 
     Landing --> Error: 失败
     Raw --> Error: 失败
-    Enriched --> Error: 失败
-    CopyToRS --> Error: 失败
+    SqlEltToRS --> Error: 失败
     Error --> Retry: 重试/告警
     Retry --> [*]
 ```
 <p class="caption" markdown="span">**图 10-3** Ingestion 模式（最核心）</p>
 
-这个状态机的流程不是一次定型的——它经历了三个版本的演进。第一版只有"Landing → Raw → Enriched → CopyToRS"四步，没有"ReadConfig"和"WriteStatus"。第一版跑了两周就暴露了问题：每个 Glue job 的参数（源路径、目标路径、字段映射）硬编码在状态机 JSON 里，改一个参数要改 JSON 重新部署状态机——太重了。第二版我加了"ReadConfig"步——Lambda 从 DynamoDB 读配置，注入给 Glue job——这样改参数只需改 DynamoDB，状态机不用动（M1 配置驱动在编排层的落地）。第三版加的是"WriteStatus"——最初状态机的执行状态只存在 Step Functions 的执行历史里，排障要翻 SF 控制台，不直观；加了 WriteStatus 后状态回写到 DynamoDB，运维查一个表就能看全平台所有任务的状态（呼应 [Ch 5 状态回写](./05-端到端数据流全景.md)）。
+这个状态机的流程不是一次定型的，它经历了四个版本的演进。第一版只有"Landing → Raw → Enriched → CopyToRS"四步，没有"ReadConfig"和"WriteStatus"。第一版跑了两周就暴露了问题：每个 Glue job 的参数硬编码在状态机 JSON 里，改参数要重新部署，太重了。第二版我加了"ReadConfig"：Lambda 从 DynamoDB 读配置注入 Glue（M1 配置驱动）。第三版加了"WriteStatus"：状态回写到 DynamoDB，运维查一张表就能看全平台任务状态（呼应 [Ch 5](./05-端到端数据流全景.md)）。
 
-流程里还有一条容易被忽略的线——每个 Glue 步骤都通向"Error → Retry"。这个错误处理不是事后补的，是第一天就设计的。我在企业征信时见过"ETL 失败无人知晓"的痛（见 [Ch 5 §5.3.3](./05-端到端数据流全景.md)），所以 Ingestion 状态机从第一版就有 Retry——默认重试 3 次，间隔指数退避，3 次都失败转 DLQ（死信队列）+ 告警。**编排引擎的价值不只是"串流程"，更是"管故障"**——没有错误处理的编排还不如 cron。
+**第四版**是和数据湖分层演进同步的：去掉 Enriched 与 COPY 主路径，改成 `Raw → SqlEltToRS`。Glue/Python Shell 经 Redshift Data API 提交 SQL，从 Spectrum 外挂的 Raw 做 ELT 写入 `enriched_*`。状态转换次数少了一步，Glue 队列也瘦了。我当时最怕的是"编排 JSON 大爆炸"：每加一跳就多一套错误分支与重试；砍掉金层跳之后，Ingestion 模板反而更好维护。
 
+流程里还有一条容易被忽略的线：每个数据处理步骤都通向"Error → Retry"。这个错误处理不是事后补的，是第一天就设计的。编排引擎不只是串流程，更要管故障；没有错误处理的编排还不如 cron。
 ### Export 模式
 
 ```mermaid
@@ -143,7 +147,7 @@ stateDiagram-v2
 
 Export 模式看起来就是 Ingestion 的"逆过程"——一个数据进来，一个数据出去。但实际工程中它们的复杂度不对称：Export 比 Ingestion 难。原因在"Push"这一步——推送到下游系统（SFTP/API/Salesforce）要处理目标系统的限流、幂等、回滚，这些在 Ingestion 端不存在。我在第一年低估了这个差异，以为"导出就是导入的逆过程"，结果到第二年激活导出需求爆发时，Push 步骤的各种故障（Salesforce 限流、API 超时、SFTP 连接断）吃掉了团队大量排障时间。后来不得不重构了整个导出框架（详见 [Ch 37 DaaS 激活层](./37-数据即服务-DaaS激活层设计.md)）。**导入和导出看似对称，实则是完全不同的工程问题**——这是我在编排设计上交的学费。
 
-Export 模式还有一个与 Ingestion 不同的设计点——触发方式。Ingestion 以事件触发为主（文件到达即处理），Export 几乎全是定时触发（T+1 批量导出）。原因是导出依赖"上游数据已加工完毕"——如果事件触发，可能 Enriched 还没算完就触发导出，导出的是半成品。定时触发（如每天 06:00）隐含了一个假设："06:00 之前所有 Ingestion 都跑完了"——这个假设需要监控保障，我们在 [Ch 49 日志监控审计与告警](./49-日志-监控-审计与告警.md) 里设计了"依赖完成检查"机制来兜底。
+Export 模式还有一个与 Ingestion 不同的设计点：触发方式。Ingestion 以事件触发为主（文件到达即处理），Export 几乎全是定时触发（T+1 批量导出）。原因是导出依赖"上游入仓已完成"。如果事件触发，可能 SQL ELT 还没写完 `enriched_*` 就触发导出，导出的是半成品。定时触发（如每天 06:00）隐含了一个假设："06:00 之前所有 Ingestion 都跑完了"。这个假设需要监控保障，我们在 [Ch 51 日志监控审计与告警](./51-日志-监控-审计与告警.md) 里设计了"依赖完成检查"机制来兜底。
 
 ### 模式抽象的价值
 
@@ -230,7 +234,7 @@ linkStyle default stroke:#697077,stroke-width:2px
 
 这张图展示的是一个业务域"同时用两种触发方式"的真实组合。图里有三个触发点：SFTP 文件到达走事件触发（Ingestion），JDBC 源走每天 02:00 定时（JDBC 摄取），导出走每天 06:00 定时（Export）。这三个时间点不是随便定的——02:00 是为了"在业务方上班前把 JDBC 数据拉完"，06:00 是为了"在 02:00 的 JDBC 摄取和加工都跑完后才导出"。**定时的时间点要形成依赖链**——06:00 的导出依赖 02:00 的摄取，如果 02:00 没跑完，06:00 导出的就是旧数据。
 
-这个"时间点依赖链"在第一年靠"人工估算 + 留足余量"运作——02:00 摄取通常 1 小时跑完，06:00 导出留了 3 小时余量，足够。但到第二年数据量增长后，有次 JDBC 摄取跑了 4 小时（数据量翻倍），到 06:00 还没跑完，导出触发时拿到的是半成品——报表数字错了半天才发现。这次事故让我意识到"靠时间余量做依赖"是脆弱的——正确做法应该是"依赖完成检查"：导出状态机启动前先查 JDBC 摄取的状态，没完成就等待或告警。这个机制后来在 [Ch 49 日志监控审计与告警](./49-日志-监控-审计与告警.md) 里实现了。**定时调度的依赖链不能靠"时间余量"，要靠"状态检查"**——这是事件驱动编排（M3）与定时调度混合使用时的关键设计。
+这个"时间点依赖链"在第一年靠"人工估算 + 留足余量"运作——02:00 摄取通常 1 小时跑完，06:00 导出留了 3 小时余量，足够。但到第二年数据量增长后，有次 JDBC 摄取跑了 4 小时（数据量翻倍），到 06:00 还没跑完，导出触发时拿到的是半成品——报表数字错了半天才发现。这次事故让我意识到"靠时间余量做依赖"是脆弱的——正确做法应该是"依赖完成检查"：导出状态机启动前先查 JDBC 摄取的状态，没完成就等待或告警。这个机制后来在 [Ch 51 日志监控审计与告警](./51-日志-监控-审计与告警.md) 里实现了。**定时调度的依赖链不能靠"时间余量"，要靠"状态检查"**——这是事件驱动编排（M3）与定时调度混合使用时的关键设计。
 
 ---
 

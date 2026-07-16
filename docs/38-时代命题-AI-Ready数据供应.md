@@ -3,7 +3,7 @@
 !!! info "面包屑"
     [本书主页](./index.md) › [Part VII Data+AI 转型](./37-数据即服务-DaaS激活层设计.md) › Ch 38
 
-!!! abstract "项目第 4 年 · Data+AI 转型期——新命题浮现"
+!!! abstract "项目第 4 年 · Data+AI 转型期——方向探索与 POC 验证"
 
 ---
 
@@ -14,6 +14,11 @@
 - AI-Ready 数据的五个特征
 - build vs buy 决策框架（Cortex/Databricks/ThoughtSpot/自建对比）
 - NL2SQL 失败模式分类学（术语歧义/鸿沟陷阱/幻觉列/不安全查询 + 应对）
+
+---
+
+> **⚠️ Part VII 定位声明**
+> Part VII（Ch 38–49）写的是 Aurora 第 4 年 **Data+AI 方向探索与 POC**，不是教学示例，也不是全平台生产替换。两条线并行：① **NewtonData**（Agentic BI）——小业务域把语义资产 → NL2SQL 跑通，给内部用户试用；② **LumenKB / FieldGenie**——说明书、价策等版式文档的理解与检索，再经 MCP 给 Agentic BI 补证据（[Ch 47](./47-多模态业务知识库-Knowhere与PixelRAG与LumenKB.md)/[Ch 48](./48-一线产品助手-FieldGenie与MCP增强.md)）。后文架构和取舍来自这些 POC；评测数字是内部观测量级，外推还要验证。Steiner 树规划器标为**实验性**（见 [Ch 43](./43-语义查询规划器-Steiner树与代数改写.md)）。
 
 ---
 
@@ -200,24 +205,19 @@ linkStyle default stroke:#697077,stroke-width:2px
 
 ### NewtonData 的引入
 
-为满足这些诉求，Aurora 引入了 **NewtonData**——一个企业级 Agentic BI 平台，完全复刻并融入 CDP 平台。
+为验证这些诉求是不是站得住，Aurora 第 4 年做了 NewtonData——挂在 CDP 上的 Agentic BI POC。我没一上来啃最大最难的域：先挑一个相对小的业务域，把语义资产 → 检索 → 规划 → 护栏 → 执行跑通，再丢给内部用户试用。不是想一夜换掉全部 BI，就想先看清楚：架构能不能立住，人愿不愿意用，哪些该进主路径、哪些只能当实验。
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
 flowchart LR
- subgraph NewtonData定位["NewtonData 在 CDP 中的定位"]
- CDP[CDP 数据平台<br/>数据湖+数仓+治理] -->|供应 AI-Ready 数据|TTD[NewtonData<br/>Agentic BI 平台]
- TTD -->|自然语言查询|BIZ[业务用户]
+ subgraph NewtonData定位["NewtonData 在 CDP 中的定位（POC）"]
+ CDP[CDP 数据平台<br/>数据湖+数仓+治理] -->|供应 AI-Ready 数据<br/>小业务域切片|TTD[NewtonData<br/>Agentic BI POC]
+ TTD -->|自然语言查询|BIZ[内部试用用户]
  TTD -->|执行 SQL|RS[Redshift Serverless<br/>各环境独立实例]
  end
 classDef bpProcess fill:#edf5ff,stroke:#0f62fe,stroke-width:2px,color:#161616
 classDef bpData fill:#d9fbfb,stroke:#007d79,stroke-width:2px,color:#161616
-classDef bpDecision fill:#fcf4d6,stroke:#f1c21b,stroke-width:2px,color:#161616
-classDef bpSuccess fill:#defbe6,stroke:#198038,stroke-width:2px,color:#161616
-classDef bpError fill:#fff1f1,stroke:#da1e28,stroke-width:2px,color:#161616
-classDef bpExternal fill:#f2f4f8,stroke:#697077,stroke-width:2px,color:#161616
 classDef bpInfo fill:#f6f2ff,stroke:#8a3ffc,stroke-width:2px,color:#161616
-classDef bpGroup fill:#ffffff,stroke:#0f62fe,stroke-width:2px,color:#161616
 class BIZ bpInfo
 class CDP bpProcess
 class RS bpData
@@ -228,10 +228,12 @@ linkStyle default stroke:#697077,stroke-width:2px
 
 | 特征 | 说明 |
 |---|---|
-| **数据平面** | 默认使用 Redshift Serverless，dev/qa/prod 各环境对应独立的 Redshift Serverless 实例 |
+| **定位** | Data+AI 方向探索 + POC 验证；小业务域落地，内部用户体验 |
+| **数据平面** | 默认使用 Redshift Serverless，dev/qa/prod 各环境对应独立实例 |
 | **语义治理** | 三层语义治理约束 LLM 搜索空间 |
 | **Agent 编排** | LangGraph 状态机编排多步推理 |
 | **多层护栏** | 五层 SQL 护栏保证安全 |
+| **实验能力** | Steiner 树规划器等：面向单域上千表复杂 join 的探索（[Ch 43](./43-语义查询规划器-Steiner树与代数改写.md)） |
 <p class="caption" markdown="span">**表 38-4** NewtonData 的引入</p>
 
 
@@ -325,7 +327,7 @@ Aurora 选自建，两个原因：① 医药合规要求语义层深度定制（
     自建 Agentic BI 的隐性成本常被低估——不只是初始开发，还有持续的 LLM API 成本、语义资产维护、护栏调优、评估迭代。如果团队 AI 工程能力不足或语义定制需求不强，买现成方案是更务实的选择。自建适合"定制需求深 + 有工程能力 + 长期投入"的组合，三者缺一建议买。
 
 ## 38.6 NL2SQL 失败模式分类学：真实 bad case 前例
-自建 Agentic BI，最大的风险是"你不知道会在哪里翻车"。NewtonData 上线磨合的那个月（[Ch 51](./51-价值度量与案例复盘.md) 30 天阶段），我们攒了一批典型的失败案例，按模式分了类——这些前例后来者能参考，提前布防：
+自建 Agentic BI，最大的风险是"你不知道会在哪里翻车"。NewtonData 上线磨合的那个月（[Ch 53](./53-价值度量与案例复盘.md) 30 天阶段），我们攒了一批典型的失败案例，按模式分了类——这些前例后来者能参考，提前布防：
 
 | 失败模式 | 真实 bad case | 错误 SQL 节选 | 根因 |
 |---|---|---|---|
@@ -339,7 +341,7 @@ Aurora 选自建，两个原因：① 医药合规要求语义层深度定制（
 每种失败模式都有对应的解法：术语歧义走 L2 术语绑定（[Ch 40](./40-语义平面-三层治理与Git-YAML.md)）；鸿沟陷阱靠 Steiner 树 + 代数改写（[Ch 43](./43-语义查询规划器-Steiner树与代数改写.md)）；幻觉列用 RAG + AST 列白名单挡住（[Ch 44](./44-五层SQL护栏与执行安全.md)）；不安全查询交给策略黑名单 + 提示注入防御（[Ch 44](./44-五层SQL护栏与执行安全.md)）。这些前例就是 NewtonData 五层护栏和语义平面设计的"需求来源"——先看见失败，再设计防护。
 
 !!! tip "引申"
-    失败模式分类学的价值在于"把随机错误变为可分类问题"。上线初期准确率 75% 看似低，但拆开看：术语歧义占 40%、幻觉列占 30%、鸿沟陷阱占 20%、其他 10%——前三类都有明确应对手段。补齐术语绑定 + RAG + Steiner 树后，准确率跳到 93%+（[Ch 51](./51-价值度量与案例复盘.md)）。这就是"用失败驱动改进"的闭环：收集 bad case → 分类 → 针对性布防 → 验证提升。
+    失败模式分类学的价值在于"把随机错误变为可分类问题"。上线初期准确率 75% 看似低，但拆开看：术语歧义占 40%、幻觉列占 30%、鸿沟陷阱占 20%、其他 10%——前三类都有明确应对手段。补齐术语绑定 + RAG + Steiner 树后，准确率跳到 93%+（[Ch 53](./53-价值度量与案例复盘.md)）。这就是"用失败驱动改进"的闭环：收集 bad case → 分类 → 针对性布防 → 验证提升。
 
 ---
 
@@ -347,7 +349,7 @@ Aurora 选自建，两个原因：① 医药合规要求语义层深度定制（
 - 传统 BI 瓶颈：取数依赖数据团队、口径困惑、时效延迟、规模化困境
 - NL2SQL 演进四阶段：Prompt-only → Schema-aware RAG → Agent 编排 → Agentic BI（企业可用）
 - Agentic BI 不是聊天机器人，是工程化治理的 NL2SQL Agent——挑战在"正确/安全/可解释"而非"生成"
-- NewtonData 引入：Agentic BI 平台，数据平面用 Redshift Serverless（dev/qa/prod 各环境独立），融入 CDP
+- NewtonData 引入：挂在 CDP 上的 Agentic BI POC，小业务域落地、内部试用；方向探索，不是全平台生产替换
 - AI-Ready 数据五特征：语义化/可治理/可追溯/低延迟/安全——本质是"从人读变为机读"
 
 ---

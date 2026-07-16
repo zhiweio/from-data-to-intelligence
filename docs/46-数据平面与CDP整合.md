@@ -2,7 +2,7 @@
 !!! info "面包屑"
     [本书主页](./index.md) › [Part VII Data+AI 转型](./45-记忆系统与工具使用.md) › Ch 46
 
-!!! abstract "项目第 4 年 · Data+AI转型期——CDP整合"
+!!! abstract "项目第 4 年 · Data+AI POC——与 CDP 整合"
 
 ---
 
@@ -15,15 +15,15 @@
 
 ---
 
-数据平面是 Agentic BI 的"执行域"——语义资产发布到这里供 Agent 检索（[Ch 40](./40-语义平面-三层治理与Git-YAML.md)），用户的问题也在这里变成 SQL 执行。但这章想讲的事情更大一点：Agentic BI 的数据平面不是从零搭的，它是从前三年建好的 CDP 数据平台上长出来的。
+数据平面是 NewtonData POC 的执行域：小业务域的语义资产发到这里给 Agent 检索（[Ch 40](./40-语义平面-三层治理与Git-YAML.md)），内部试用用户的问题也在这里变成 SQL。我想钉死一点：Agentic BI 不是另起一座数仓，是在前三年的 CDP 上嫁接一层可试用的 AI 能力。
 
-CDP 平台是基石——数据湖的 Medallion 分层（[Ch 7](./07-数据湖分层设计.md)）、数仓的 Kimball 模型与 RLS/CLS 防护（[Ch 8](./08-数据仓库设计-Redshift.md)、[Ch 18](./18-数据脱敏与隐私治理.md)）、控制面与数据面的分离（[Ch 9](./09-计算与ETL设计-Glue与Lambda.md)）、元数据与血缘（[Ch 20](./20-元数据管理与数据血缘.md)）、DaaS 的多租户隔离（[Ch 37](./37-数据即服务-DaaS激活层设计.md)）——前三年的这些东西，给 Agentic BI 提供了现成的数据底座和安全骨架。Data+AI 转型不是另起炉灶，是在已有数据平台上嫁接 AI 能力。
+CDP 是基石——Medallion（[Ch 7](./07-数据湖分层设计.md)）、Kimball 与 RLS/CLS（[Ch 8](./08-数据仓库设计-Redshift.md)、[Ch 18](./18-数据脱敏与隐私治理.md)）、控制面/数据面分离（[Ch 9](./09-计算与ETL设计-Glue与Lambda.md)）、元数据与血缘（[Ch 20](./20-元数据管理与数据血缘.md)）、DaaS 多租户（[Ch 37](./37-数据即服务-DaaS激活层设计.md)）。POC 吃的就是这些现成底座。Data+AI 探索的代价也很清楚：先切一小域验证，再谈要不要扩大。
 
 ---
 
 ## 46.1 数据平面：Redshift Serverless 多环境
 
-Agentic BI 的执行后端选了 Redshift Serverless，没复用 CDP 生产 Redshift。原因简单——AI 生成的 SQL 不可控，可能跑出一堆复杂查询，打在生产 Redshift 上会直接影响 BI 查询。独立实例做执行隔离，比从源头控制 SQL 质量更稳妥。
+POC 的执行后端选了 Redshift Serverless，故意不复用 CDP 生产 Redshift。AI 生成的 SQL 不可控，复杂查询一堆甩过来，打在生产集群上会拖垮线上 BI。独立实例做隔离，比幻想 LLM 一定写出好 SQL 更靠谱。这里的 dev/qa/prod 指 POC 自己的环境隔离，不是说 Agentic BI 已经全平台投产。
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
@@ -31,7 +31,7 @@ flowchart TB
  subgraph 数据平面["数据平面：Redshift Serverless 多环境"]
  DEV@{ icon: "logos:aws-redshift", form: "rounded", label: DEV 环境<br/>Redshift Serverless 实例 1<br/>开发测试, pos: "b", h: 40 }
  QA@{ icon: "logos:aws-redshift", form: "rounded", label: QA 环境<br/>Redshift Serverless 实例 2<br/>UAT 验收, pos: "b", h: 40 }
- PROD@{ icon: "logos:aws-redshift", form: "rounded", label: PROD 环境<br/>Redshift Serverless 实例 3<br/>生产查询, pos: "b", h: 40 }
+ PROD@{ icon: "logos:aws-redshift", form: "rounded", label: PROD 环境<br/>Redshift Serverless 实例 3<br/>POC 内部试用, pos: "b", h: 40 }
  end
 
  AI_DEV[DEV AI Agent] --> DEV
@@ -188,7 +188,7 @@ flowchart LR
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
 flowchart TB
  subgraph CDP平台["CDP 数据平台（前三年的基石）"]
- LAKE@{ icon: "logos:aws-s3", form: "rounded", label: S3 数据湖<br/>Landing/Raw/Enriched, pos: "b", h: 40 }
+ LAKE@{ icon: "logos:aws-s3", form: "rounded", label: S3 数据湖<br/>Landing/Raw, pos: "b", h: 40 }
  RS_PROD@{ icon: "logos:aws-redshift", form: "rounded", label: CDP 生产 Redshift<br/>BI 查询 + RLS/CLS, pos: "b", h: 40 }
  end
 
@@ -198,7 +198,7 @@ flowchart TB
  AGENT@{ icon: "codicon:hubot", form: "rounded", label: Agent 编排, pos: "b", h: 36 }
  end
 
- LAKE -->|COPY 同步 Enriched 层|RS_AI
+ LAKE -->|SQL ELT / 同步 enriched_*|RS_AI
  RS_PROD -->|RLS/CLS 策略继承|RS_AI
  SEM -->|描述|RS_AI
  AGENT -->|生成 SQL 执行|RS_AI
@@ -221,15 +221,14 @@ flowchart TB
 
 ### 数据同步链路
 
-CDP 数据湖的 Enriched 层（Gold）数据通过 `COPY` 命令同步到 Redshift Serverless——直接复用 CDP 已有的数据管道（[Ch 7](./07-数据湖分层设计.md) 的 Medallion 分层、[Ch 9](./09-计算与ETL设计-Glue与Lambda.md) 的 ETL 设计），不用为 AI 另建管道：
+CDP 仓内 `enriched_*`（Gold）同步到 Redshift Serverless，直接复用 CDP 已有的湖仓管道（[Ch 7](./07-数据湖分层设计.md) 分层、[Ch 8](./08-数据仓库设计-Redshift.md)/[Ch 9](./09-计算与ETL设计-Glue与Lambda.md) SQL ELT），不用为 AI 另建管道：
 
 ```sql
--- 示意：CDP Enriched 层数据同步到 Redshift Serverless（AI 执行后端）
--- 复用 CDP 已有的 S3 → Redshift COPY 管道（Ch 7/Ch 9）
-COPY fact_prescription
-FROM 's3://ap-aurora-cdp-enriched/pharma/fact_prescription/'
-IAM_ROLE 'arn:aws-cn:iam::123456789012:role/ap-aurora-cdp-ai-exec'
-FORMAT AS PARQUET;
+-- 示意：从 CDP enriched_* 同步到 Redshift Serverless（AI 执行后端）
+-- 复用 CDP 已有的 SQL ELT / 仓内表同步路径（Ch 7/Ch 8/Ch 9）
+INSERT INTO fact_prescription
+SELECT * FROM cdp_prod.enriched_pharma.fact_prescription
+WHERE biz_date >= CURRENT_DATE - 7;
 
 -- 同步 dim_hospital、dim_product 等维度表...
 -- 同步后，AI Agent 生成的 SQL 在 Serverless 执行，不影响 CDP 生产 Redshift
@@ -259,7 +258,7 @@ GRANT RLS POLICY region_isolation TO ROLE ai_agent_as_user_a;
 
 | 整合点 | CDP 基石 | Agentic BI 延伸 |
 |---|---|---|
-| **数据同步** | [Ch 7](./07-数据湖分层设计.md) Medallion Enriched 层 | COPY 同步到 Redshift Serverless |
+| **数据同步** | [Ch 7](./07-数据湖分层设计.md)/[Ch 8](./08-数据仓库设计-Redshift.md) `enriched_*` | 仓内表同步到 Redshift Serverless |
 | **行级安全** | [Ch 8](./08-数据仓库设计-Redshift.md) RLS 策略 | AI Agent 继承用户区域隔离 |
 | **列级安全** | [Ch 18](./18-数据脱敏与隐私治理.md) CLS + 脱敏 | PII 列对 LLM 不可见 |
 | **多租户** | [Ch 37](./37-数据即服务-DaaS激活层设计.md) `db_user_{tenant}` | 延伸为 `ai_agent_as_user_{tenant}` 角色 |
@@ -399,7 +398,7 @@ flowchart TB
 
 当前架构中，数据湖（S3）和数据仓库（Redshift）是分离的——语义平面只描述 Redshift 中的表，数据湖的 Parquet 文件没有"表语义"。未来方向是"统一语义层"——一套语义资产同时描述湖和仓，AI 通过语义层统一消费，不关心数据物理上在湖里还是仓里。
 
-这需要表格式（:material-database-sync: Iceberg/Delta）的支撑——让数据湖也能有"表"的语义（schema、分区、事务），而不是散落的文件。[Ch 7](./07-数据湖分层设计.md) 当初选了纯 Parquet 没选 Iceberg/Delta，算是个遗憾（[Ch 52](./52-架构师的复盘-取舍遗憾与主流对比.md) 会复盘），湖仓一体的统一语义层正好弥补这个缺口。
+这需要表格式（:material-database-sync: Iceberg/Delta）的支撑——让数据湖也能有"表"的语义（schema、分区、事务），而不是散落的文件。[Ch 7](./07-数据湖分层设计.md) 当初选了纯 Parquet 没选 Iceberg/Delta，算是个遗憾（[Ch 54](./54-架构师的复盘-取舍遗憾与主流对比.md) 会复盘），湖仓一体的统一语义层正好弥补这个缺口。
 
 !!! tip "引申：湖仓一体的终极愿景"
     湖仓一体（Lakehouse）的终极愿景是湖和仓的边界消失，语义层统一一切。Iceberg/Delta 表格式让数据湖拥有 ACID 事务、schema 演化、时间旅行——这些原本只有数据仓库才有的能力。当数据湖也变成了"表"，语义平面就能同时描述湖和仓，AI Agent 不用再问"这张表在 S3 还是 Redshift"——统一语义层屏蔽了存储差异。这是平台演进的下一个台阶，也是 Agentic BI 数据供应的终极形态。
@@ -416,4 +415,4 @@ flowchart TB
 ---
 
 !!! quote "下一章"
-    [Ch 47 评估、可观测与持续演进](./47-评估-可观测与持续演进.md) —— Part VII 最后一章：Agentic BI 怎么评估质量、怎么做可观测、未来怎么演进。
+    [Ch 47 多模态业务知识库：Knowhere × PixelRAG 与 LumenKB](./47-多模态业务知识库-Knowhere与PixelRAG与LumenKB.md) —— 结构化取数之外，另一条探索：医药业务文档怎么语义化、怎么多模态检索。

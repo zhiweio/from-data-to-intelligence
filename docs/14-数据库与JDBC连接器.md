@@ -17,6 +17,9 @@
 
 ## 14.1 关系型数据库的加载模式设计：全量/增量/自定义
 
+!!! note "边界：JDBC 只管源库，不管 Redshift"
+    本章 JDBC / ODBC 只用于从 **MySQL、SQL Server、PostgreSQL** 等关系型源库经 Glue Spark Job 拉数入湖。平台对 **Redshift** 的 COPY / UNLOAD / DDL 一律走 Glue + boto3（Redshift Data API），见 [Ch 5](./05-端到端数据流全景.md)、[Ch 32](./32-跨账号批量同步-双桶桥接架构.md)——两条路径不要混为一谈。
+
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
 flowchart TB
@@ -205,14 +208,14 @@ flowchart LR
 <p class="caption" markdown="span">**图 14-4** 示意：迟到数据处理——回溯窗口 + 分区幂等覆盖</p>
 
 !!! tip "引申"
-    回溯窗口的大小是一个权衡——太小会漏迟到数据，太大会让每次增量都重拉大量已处理数据，浪费算力。3 天是医药行业批处理场景的常见经验值（多数 SFE/CRM 的批处理延迟在 1-2 天内）。回溯窗口必须配合**幂等写入**（按分区 `overwrite`）才能工作——否则重拉的数据会和旧数据重复。幂等性是增量加载的基石，详见 [Ch 17](./17-Landing到Raw到Enriched开发实战.md) 的代理键与对账设计。
+    回溯窗口的大小是一个权衡——太小会漏迟到数据，太大会让每次增量都重拉大量已处理数据，浪费算力。3 天是医药行业批处理场景的常见经验值（多数 SFE/CRM 的批处理延迟在 1-2 天内）。回溯窗口必须配合**幂等写入**（按分区 `overwrite`）才能工作——否则重拉的数据会和旧数据重复。幂等性是增量加载的基石，详见 [Ch 17](./17-Landing到Raw到Redshift开发实战.md) 的代理键与对账设计。
 
 ### 变更捕获策略对比
 
 | 策略 | 机制 | 优势 | 劣势 |
 |---|---|---|---|
 | **时间戳水位** | `WHERE updated_at > last` | 简单通用 | 无法捕获硬删除 |
-| **CDC（变更数据捕获）** | 读取数据库日志（如 binlog） | 能捕获 INSERT/UPDATE/DELETE | 需要源系统支持+权限 |
+| **CDC（变更数据捕获）** | 读事务日志（MySQL: binlog；SQL Server: MS-CDC / transaction log） | 能捕获 INSERT/UPDATE/DELETE | 需要源系统支持+权限 |
 | **触发器+标志表** | 源表加触发器记录变更 | 不依赖日志 | 侵入源系统 |
 | **全量比对** | 全量拉取后与上次比对 | 无需源改造 | 性能差 |
 <p class="caption" markdown="span">**表 14-3** 变更捕获策略对比</p>
@@ -221,7 +224,7 @@ flowchart LR
 !!! tip "引申"
     理想的增量捕获是 CDC（Change Data Capture）——通过读取数据库事务日志，精确捕获每条 INSERT/UPDATE/DELETE。AWS DMS 的 CDC 模式、Debezium、Flink CDC 都是这一思路。但 CDC 需要源系统开放日志权限且配置复杂，在医药企业的遗留系统上往往不可行。因此平台以时间戳水位为主、定期全量校准为辅——这是务实选择。
 
-    我在项目第一月认真评估过 CDC——它确实能解决"硬删除捕获"这个时间戳水位的死穴（见 §14.2.5）。但评估后发现两个阻断性问题：一是 Aurora 的核心源系统 SQL Server 是遗留版本，binlog 读取需要 DBA 开权限且影响性能，DBA 明确拒绝；二是 Salesforce SaaS 源根本没有"数据库日志"这个概念，CDC 无从谈起。所以 CDC 对 Aurora 不可行不是"我不想用"，而是"源系统不支持"。退而求其次选时间戳水位+定期全量校准——虽然不如 CDC 精确，但在遗留系统约束下是唯一可行方案。架构选型不能只看"哪个更先进"，要看"源系统允许什么"——这是数据工程务实主义的体现。
+    我在项目第一月认真评估过 CDC——它确实能解决"硬删除捕获"这个时间戳水位的死穴（见 §14.2.5）。但评估后发现两个阻断性问题：一是 Aurora 的核心源系统 SQL Server 是遗留版本，transaction log（MS-CDC）读取需要 DBA 开权限且影响性能，DBA 明确拒绝；二是 Salesforce SaaS 源根本没有"数据库日志"这个概念，CDC 无从谈起。需要说明的是，SQL Server 的事务日志通过 MS-CDC（`sys.sp_cdc_enable_table`）或 Always On 可用性组 + DMS 捕获变更，与 MySQL 的 binlog 机制不同——binlog 是 MySQL 概念，SQL Server 没有 binlog。所以 CDC 对 Aurora 不可行不是"我不想用"，而是"源系统不支持"。退而求其次选时间戳水位+定期全量校准——虽然不如 CDC 精确，但在遗留系统约束下是唯一可行方案。架构选型不能只看"哪个更先进"，要看"源系统允许什么"——这是数据工程务实主义的体现。
 
 ### 处理删除的难题
 

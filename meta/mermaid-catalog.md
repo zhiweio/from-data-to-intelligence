@@ -7,18 +7,18 @@
 
 ## 统计总览
 
-全书共 **336** 个 Mermaid 图表，分布在 **54** 个章节中。
+全书共 **348** 个 Mermaid 图表，分布在 **56** 个章节中。
 
 | 图表类型 | 数量 | 占比 |
 |---------|------|
-| `flowchart LR` | 129 | 38.3% |
-| `flowchart TB` | 108 | 32.1% |
-| `flowchart TD` | 46 | 13.8% |
-| `mindmap` | 11 | 3.3% |
-| `sequenceDiagram` | 13 | 3.9% |
-| `timeline` | 7 | 2.1% |
-| `quadrantChart` | 4 | 1.2% |
-| `stateDiagram-v2` | 4 | 1.2% |
+| `flowchart LR` | 134 | 38.5% |
+| `flowchart TB` | 115 | 33.0% |
+| `flowchart TD` | 45 | 12.9% |
+| `mindmap` | 11 | 3.2% |
+| `sequenceDiagram` | 14 | 4.0% |
+| `timeline` | 7 | 2.0% |
+| `quadrantChart` | 4 | 1.1% |
+| `stateDiagram-v2` | 4 | 1.1% |
 | `erDiagram` | 3 | 0.9% |
 | `C4Context` | 2 | 0.6% |
 | `flowchart` | 2 | 0.6% |
@@ -128,8 +128,9 @@
 
 | 图号 | 类型 | 描述 |
 |------|------|------|
-| **图 7-1**| `flowchart LR` | 7.1 S3 分层桶设计与命名约定 |
-| **图 7-2**| `flowchart TD` | Medallion 架构的层间契约 |
+### Ch 7: 数据湖分层设计
+| **图 7-1**| `flowchart LR` | 7.1 S3 两层桶（Landing/Raw）与 Spectrum ELT |
+| **图 7-2**| `flowchart TD` | Medallion 层间契约（Gold 上移 Redshift） |
 | **图 7-3**| `flowchart LR` | 如果重来 |
 
 ### Ch 8: 数据仓库设计（Redshift）
@@ -139,7 +140,7 @@
 | 图号 | 类型 | 描述 |
 |------|------|------|
 | **图 8-1**| `flowchart TB` | 集群架构 |
-| **图 8-2**| `flowchart LR` | Spectrum：数据湖的"外部表" |
+| **图 8-2**| `flowchart LR` | Spectrum：Raw Catalog 外挂与 SQL ELT 入仓 |
 | **图 8-3**| `flowchart TB` | Schema 分层 |
 | **图 8-4**| `erDiagram` | Kimball 维度建模 |
 | **图 8-5**| `flowchart TD` | RLS（Row-Level Security）：行级安全 |
@@ -246,7 +247,7 @@
 | **图 16-3**| `flowchart TB` | 分页策略 |
 | **图 16-4**| `flowchart TD` | 容错重试 |
 | **图 16-5**| `flowchart LR` | 速率限制与重试 |
-| **图 16-6**| `sequenceDiagram` | 批量抽取 |
+| **图 16-6**| `sequenceDiagram` | Salesforce Bulk API 2.0 批量抽取（创建作业→轮询→下载→落 S3） |
 | **图 16-7**| `flowchart LR` | 双向任务监控 |
 | **图 16-8**| `flowchart LR` | AWS SES 邮件摄取架构 |
 | **图 16-9**| `flowchart TB` | AWS SES 邮件摄取设计要点 |
@@ -254,7 +255,7 @@
 | **图 16-11**| `flowchart TB` | Outlook 邮件摄取架构设计 |
 | **图 16-12**| `flowchart LR` | Outlook 连接器与标准管线集成 |
 
-### Ch 17: Landing→Raw→Enriched 开发实战
+### Ch 17: Landing→Raw→Redshift 开发实战
 
 **图表数量**: 5
 
@@ -306,7 +307,7 @@
 
 ## Part IV 基础设施与工程效能
 
-> 10 章 | 47 个图表
+> 10 章 | 48 个图表
 
 ### Ch 21: :simple-terraform: Terraform 架构总览
 
@@ -315,8 +316,8 @@
 | 图号 | 类型 | 描述 |
 |------|------|------|
 | **图 21-1**| `flowchart LR` | State 后端 |
-| **图 21-2**| `flowchart TB` | State 隔离 |
-| **图 21-3**| `flowchart TB` | 21.2 core-infra / business / generic-... |
+| **图 21-2**| `flowchart TB` | State 隔离（独立桶） |
+| **图 21-3**| `flowchart TB` | IaC 仓分层（meta/core/platform/modules/domain/CI） |
 | **图 21-4**| `flowchart LR` | Git Submodule 模式 |
 | **图 21-5**| `flowchart LR` | Remote State 引用 |
 
@@ -380,7 +381,7 @@
 
 ### Ch 27: CI/CD：可复用工作流平台
 
-**图表数量**: 4
+**图表数量**: 5
 
 | 图号 | 类型 | 描述 |
 |------|------|------|
@@ -388,6 +389,7 @@
 | **图 27-2**| `flowchart LR` | 两层分离的价值 |
 | **图 27-3**| `flowchart TB` | 27.2 自托管 runner 与容器化执行环境 |
 | **图 27-4**| `flowchart TD` | 27.3 变更检测驱动的增量 CI |
+| **图 27-5**| `flowchart TB` | Terraform CI 生命周期编排 |
 
 ### Ch 28: 四类发布流
 
@@ -427,7 +429,7 @@
 
 ## Part V 平台演进
 
-> 4 章 | 31 个图表
+> 4 章 | 30 个图表
 
 ### Ch 31: 遗留系统迁移：SQL Server → Redshift（10TB）
 
@@ -449,7 +451,7 @@
 
 ### Ch 32: 跨账号批量同步：双桶桥接架构
 
-**图表数量**: 9
+**图表数量**: 8
 
 | 图号 | 类型 | 描述 |
 |------|------|------|
@@ -460,8 +462,7 @@
 | **图 32-5**| `flowchart TB` | 32.3 三层凭证模型：最小权限与跨账号安全 |
 | **图 32-6**| `flowchart LR` | 安全设计原则 |
 | **图 32-7**| `flowchart LR` | 32.4 DDL 自动克隆与结构迁移 |
-| **图 32-8**| `flowchart TB` | 32.5 执行通道双模式设计：直连 vs 异步 API |
-| **图 32-9**| `flowchart TD` | 双模式的自动选择 |
+| **图 32-8**| `flowchart TB` | 32.5 执行通道：Glue + boto3（Data API）为主 |
 
 ### Ch 33: 自研 DAG 调度器与任务编排
 
@@ -490,7 +491,7 @@
 
 ## Part VI 衍生业务系统
 
-> 3 章 | 44 个图表
+> 3 章 | 47 个图表
 
 ### Ch 35: 衍生业务系统总领：平台的能力外延
 
@@ -530,36 +531,39 @@
 
 ### Ch 37: 数据即服务（DaaS）：激活层设计
 
-**图表数量**: 22
+**图表数量**: 25
 
 | 图号 | 类型 | 描述 |
 |------|------|------|
 | **图 37-1**| `flowchart TB` | 三条设计原则 |
 | **图 37-2**| `flowchart LR` | 统一 Lambda 分发器 |
-| **图 37-3**| `flowchart TB` | 核心问题：隔离该在哪里强制？ |
-| **图 37-4**| `sequenceDiagram` | 数据库层隔离如何工作 |
-| **图 37-5**| `classDiagram` | Tenant Context 全程流转 |
-| **图 37-6**| `flowchart TB` | RBAC + RLS + CLS 三层防护 |
-| **图 37-7**| `flowchart LR` | 为什么是两套 |
-| **图 37-8**| `sequenceDiagram` | Query API：同步查询与 LIMIT+1 截断检测 |
-| **图 37-9**| `flowchart TB` | Query API：同步查询与 LIMIT+1 截断检测 |
-| **图 37-10**| `stateDiagram-v2` | Bulk API：异步状态机与 S3 交付 |
-| **图 37-11**| `sequenceDiagram` | Bulk API：异步状态机与 S3 交付 |
-| **图 37-12**| `flowchart TB` | 数据交付策略矩阵 |
-| **图 37-13**| `sequenceDiagram` | 问题与方案 |
-| **图 37-14**| `sequenceDiagram` | 问题与方案 |
-| **图 37-15**| `stateDiagram-v2` | 会话生命周期 |
-| **图 37-16**| `flowchart TB` | 容错：失效会话自动重试 |
-| **图 37-17**| `flowchart TB` | 五层纵深 |
-| **图 37-18**| `flowchart TB` | SQL 校验管线 |
-| **图 37-19**| `flowchart LR` | 三级安全等级 |
-| **图 37-20**| `flowchart LR` | 幂等：SQL 哈希 + 幂等键 |
-| **图 37-21**| `flowchart TB` | 三种数据激活模式 |
-| **图 37-22**| `flowchart LR` | DaaS 多租户方案对比 |
+| **图 37-3**| `flowchart TB` | API 框架选型决策 |
+| **图 37-4**| `flowchart TB` | DaaS 挂靠 CDP IaC |
+| **图 37-5**| `flowchart TB` | 核心问题：隔离该在哪里强制？ |
+| **图 37-6**| `sequenceDiagram` | 数据库层隔离如何工作 |
+| **图 37-7**| `classDiagram` | Tenant Context 全程流转 |
+| **图 37-8**| `flowchart TB` | RBAC + RLS + CLS 三层防护 |
+| **图 37-9**| `flowchart LR` | 为什么是两套 |
+| **图 37-10**| `sequenceDiagram` | Query API：同步查询与 LIMIT+1 截断检测 |
+| **图 37-11**| `flowchart TB` | Query API：同步查询与 LIMIT+1 截断检测 |
+| **图 37-12**| `stateDiagram-v2` | Bulk API：异步状态机与 S3 交付 |
+| **图 37-13**| `sequenceDiagram` | Bulk API：异步状态机与 S3 交付 |
+| **图 37-14**| `flowchart TB` | 数据交付策略矩阵 |
+| **图 37-15**| `sequenceDiagram` | 会话复用：问题与方案 |
+| **图 37-16**| `sequenceDiagram` | 会话复用：缓存命中 |
+| **图 37-17**| `stateDiagram-v2` | 会话生命周期 |
+| **图 37-18**| `flowchart TB` | 容错：失效会话自动重试 |
+| **图 37-19**| `flowchart TB` | 五层纵深 |
+| **图 37-20**| `flowchart TB` | SQL 校验管线 |
+| **图 37-21**| `flowchart LR` | 三级安全等级 |
+| **图 37-22**| `flowchart LR` | Powertools 可观测三件套 |
+| **图 37-23**| `flowchart LR` | 幂等：SQL 哈希 + 幂等键 |
+| **图 37-24**| `flowchart TB` | 三种数据激活模式 |
+| **图 37-25**| `flowchart LR` | DaaS 多租户方案对比 |
 
 ## Part VII Agentic BI
 
-> 10 章 | 68 个图表
+> 12 章 | 77 个图表
 
 ### Ch 38: 时代命题：AI-Ready 数据供应
 
@@ -683,103 +687,126 @@
 | **图 46-5**| `flowchart TD` | 转化的四个步骤 |
 | **图 46-6**| `flowchart TB` | 46.5 引申：湖仓一体的语义层如何统一湖与仓的 AI 消费 |
 
-### Ch 47: 评估、可观测与持续演进
-
-**图表数量**: 9
-
-| 图号 | 类型 | 描述 |
-|------|------|------|
-| **图 47-1**| `flowchart TB` | 47.1 Agent 评估方法论 |
-| **图 47-2**| `flowchart TD` | 三级评估体系 |
-| **图 47-3**| `mindmap` | 治理 CI 校验 |
-| **图 47-4**| `flowchart TB` | LLM-as-a-Judge 四维评估 |
-| **图 47-5**| `flowchart LR` | 基准评测结果 |
-| **图 47-6**| `flowchart TB` | 47.3 可观测四通道：从流水线到观测目标 |
-| **图 47-8**| `timeline` | 47.4 Roadmap：多租户 RLS、多 Provider 抽象、基准评测 |
-| **图 47-9**| `flowchart LR` | 多 Provider 抽象 |
-| **图 47-10**| `flowchart LR` | 47.2 反馈闭环：用户反馈→系统改进 |
-
-## Part VIII 治理、复盘与展望
-
-> 6 章 | 39 个图表
-
-### Ch 48: 安全、合规与治理
-
-**图表数量**: 12
-
-| 图号 | 类型 | 描述 |
-|------|------|------|
-| **图 48-1**| `flowchart TB` | IAM 治理体系 |
-| **图 48-2**| `flowchart LR` | KMS 加密 |
-| **图 48-3**| `flowchart LR` | 48.2 数据分类框架：分级保护的基础 |
-| **图 48-4**| `flowchart TB` | GxP ALCOA+ 原则（回顾 Ch 18） |
-| **图 48-5**| `flowchart LR` | 中国数据驻留 |
-| **图 48-6**| `flowchart TB` | 48.4 Redshift RLS/CLS 策略在数据治理中的深度应用 |
-| **图 48-7**| `flowchart LR` | RLS 策略绑定与租户隔离 |
-| **图 48-8**| `flowchart TB` | CLS 列级权限与敏感字段控制 |
-| **图 48-9**| `flowchart LR` | RLS/CLS 与审计日志联动 |
-| **图 48-10**| `flowchart TB` | 48.5 治理最佳实践与平台护栏 |
-| **图 48-11**| `flowchart TD` | 48.6 安全事件响应：从告警到复盘的全流程 |
-| **图 48-12**| `flowchart LR` | 48.7 灾难恢复与业务连续性 |
-
-### Ch 49: 日志、监控、审计与告警
+### Ch 47: 多模态业务知识库：Knowhere × PixelRAG 与 LumenKB
 
 **图表数量**: 6
 
 | 图号 | 类型 | 描述 |
 |------|------|------|
-| **图 49-1**| `flowchart TB` | 49.1 CloudWatch/CloudTrail 与审计日志持久化 |
-| **图 49-2**| `flowchart TB` | CloudWatch 仪表板布局设计 |
-| **图 49-3**| `flowchart LR` | CloudTrail |
-| **图 49-4**| `flowchart LR` | 告警体系 |
-| **图 49-5**| `flowchart TD` | 运营 Runbook |
-| **图 49-6**| `flowchart TB` | 49.3 引申：数据平台可观测性 vs 应用可观测性 |
+| **图 47-1**| `flowchart TB` | 传统切块失败 vs LumenKB 双通道 |
+| **图 47-2**| `flowchart LR` | Knowhere：文档 → Agent-ready memory |
+| **图 47-3**| `flowchart TB` | Cloud / Self-hosted / SDK 三角取舍 |
+| **图 47-4**| `flowchart LR` | PixelRAG 视觉检索路径 |
+| **图 47-5**| `flowchart TB` | LumenKB 双通道摄入 |
+| **图 47-6**| `flowchart LR` | 语义树锚点：视觉命中挂回章节 |
 
-### Ch 50: 排障与可观测性实战
+### Ch 48: 一线产品助手：FieldGenie 与 MCP 增强 Agentic BI
+
+**图表数量**: 3
+
+| 图号 | 类型 | 描述 |
+|------|------|------|
+| **图 48-1**| `flowchart LR` | 材料供给：门户/文档湖 → LumenKB → 一线与 Agent |
+| **图 48-2**| `flowchart TB` | FieldGenie 答案形态：检索 → 生成 → 富化 |
+| **图 48-3**| `sequenceDiagram` | NewtonData 经 MCP 调用 LumenKB |
+
+### Ch 49: 评估、可观测与持续演进
+
+**图表数量**: 9
+
+| 图号 | 类型 | 描述 |
+|------|------|------|
+| **图 49-1**| `flowchart TB` | 49.1 Agent 评估方法论 |
+| **图 49-2**| `flowchart TD` | 三级评估体系 |
+| **图 49-3**| `mindmap` | 治理 CI 校验 |
+| **图 49-4**| `flowchart TB` | LLM-as-a-Judge 四维评估 |
+| **图 49-5**| `flowchart LR` | 基准评测结果 |
+| **图 49-6**| `flowchart TB` | 49.3 可观测四通道：从流水线到观测目标 |
+| **图 49-8**| `timeline` | 49.4 Roadmap：多租户 RLS、多 Provider 抽象、基准评测 |
+| **图 49-9**| `flowchart LR` | 多 Provider 抽象 |
+| **图 49-10**| `flowchart LR` | 49.2 反馈闭环：用户反馈→系统改进 |
+
+## Part VIII 治理、复盘与展望
+
+> 6 章 | 39 个图表
+
+### Ch 50: 安全、合规与治理
+
+**图表数量**: 12
+
+| 图号 | 类型 | 描述 |
+|------|------|------|
+| **图 50-1**| `flowchart TB` | IAM 治理体系 |
+| **图 50-2**| `flowchart LR` | KMS 加密 |
+| **图 50-3**| `flowchart LR` | 50.2 数据分类框架：分级保护的基础 |
+| **图 50-4**| `flowchart TB` | GxP ALCOA+ 原则（回顾 Ch 18） |
+| **图 50-5**| `flowchart LR` | 中国数据驻留 |
+| **图 50-6**| `flowchart TB` | 50.4 Redshift RLS/CLS 策略在数据治理中的深度应用 |
+| **图 50-7**| `flowchart LR` | RLS 策略绑定与租户隔离 |
+| **图 50-8**| `flowchart TB` | CLS 列级权限与敏感字段控制 |
+| **图 50-9**| `flowchart LR` | RLS/CLS 与审计日志联动 |
+| **图 50-10**| `flowchart TB` | 50.5 治理最佳实践与平台护栏 |
+| **图 50-11**| `flowchart TD` | 50.6 安全事件响应：从告警到复盘的全流程 |
+| **图 50-12**| `flowchart LR` | 50.7 灾难恢复与业务连续性 |
+
+### Ch 51: 日志、监控、审计与告警
+
+**图表数量**: 6
+
+| 图号 | 类型 | 描述 |
+|------|------|------|
+| **图 51-1**| `flowchart TB` | 51.1 CloudWatch/CloudTrail 与审计日志持久化 |
+| **图 51-2**| `flowchart TB` | CloudWatch 仪表板布局设计 |
+| **图 51-3**| `flowchart LR` | CloudTrail |
+| **图 51-4**| `flowchart LR` | 告警体系 |
+| **图 51-5**| `flowchart TD` | 运营 Runbook |
+| **图 51-6**| `flowchart TB` | 51.3 引申：数据平台可观测性 vs 应用可观测性 |
+
+### Ch 52: 排障与可观测性实战
 
 **图表数量**: 5
 
 | 图号 | 类型 | 描述 |
 |------|------|------|
-| **图 50-1**| `flowchart TD` | 排障决策树 |
-| **图 50-2**| `flowchart LR` | 数据缺失的排查流程 |
-| **图 50-3**| `flowchart TD` | 50.3 跨账号同步的已知边界排障 |
-| **图 50-4**| `timeline` | 50.4 排障演练：fact_prescription 数据突然为空 |
-| **图 50-5**| `flowchart TD` | 50.5 性能退化排障：查询延迟从 3 秒涨到 30 秒 |
+| **图 52-1**| `flowchart TD` | 排障决策树 |
+| **图 52-2**| `flowchart LR` | 数据缺失的排查流程 |
+| **图 52-3**| `flowchart TD` | 52.3 跨账号同步的已知边界排障 |
+| **图 52-4**| `timeline` | 52.4 排障演练：fact_prescription 数据突然为空 |
+| **图 52-5**| `flowchart TD` | 52.5 性能退化排障：查询延迟从 3 秒涨到 30 秒 |
 
-### Ch 51: 价值度量与案例复盘
-
-**图表数量**: 7
-
-| 图号 | 类型 | 描述 |
-|------|------|------|
-| **图 51-1**| `flowchart LR` | 51.1 零售门户量化价值 |
-| **图 51-2**| `flowchart TB` | 价值来源拆解 |
-| **图 51-3**| `flowchart TB` | 四维价值度量 |
-| **图 51-4**| `flowchart LR` | 价值度量的时间轴 |
-| **图 51-5**| `flowchart LR` | 51.3 案例综合：从孤岛到 Agentic BI 的端到端价值链 |
-| **图 51-6**| `flowchart LR` | Agentic BI 量化价值 |
-| **图 51-7**| `flowchart LR` | Agentic BI 量化价值 |
-
-### Ch 52: 架构师的复盘：取舍、遗憾与主流对比
+### Ch 53: 价值度量与案例复盘
 
 **图表数量**: 7
 
 | 图号 | 类型 | 描述 |
 |------|------|------|
-| **图 52-1**| `timeline` | :material-school: 本章你将学到 |
-| **图 52-2**| `flowchart TB` | 52.1 当时做对的事 |
-| **图 52-3**| `flowchart TB` | 52.2 当时的遗憾 |
-| **图 52-4**| `flowchart TB` | 52.3 与主流方案的系统性对比 |
-| **图 52-5**| `flowchart TD` | 选型建议 |
-| **图 52-6**| `flowchart TB` | 52.4 如果重来：下一代数据平台的十个设计原则 |
-| **图 52-7**| `gantt` | 如果今天重建：12 个月落地计划 |
+| **图 53-1**| `flowchart LR` | 53.1 零售门户量化价值 |
+| **图 53-2**| `flowchart TB` | 价值来源拆解 |
+| **图 53-3**| `flowchart TB` | 四维价值度量 |
+| **图 53-4**| `flowchart LR` | 价值度量的时间轴 |
+| **图 53-5**| `flowchart LR` | 53.3 案例综合：从孤岛到 Agentic BI 的端到端价值链 |
+| **图 53-6**| `flowchart LR` | Agentic BI 量化价值 |
+| **图 53-7**| `flowchart LR` | Agentic BI 量化价值 |
 
-### Ch 53: 致谢与团队
+### Ch 54: 架构师的复盘：取舍、遗憾与主流对比
+
+**图表数量**: 7
+
+| 图号 | 类型 | 描述 |
+|------|------|------|
+| **图 54-1**| `timeline` | :material-school: 本章你将学到 |
+| **图 54-2**| `flowchart TB` | 54.1 当时做对的事 |
+| **图 54-3**| `flowchart TB` | 54.2 当时的遗憾 |
+| **图 54-4**| `flowchart TB` | 54.3 与主流方案的系统性对比 |
+| **图 54-5**| `flowchart TD` | 选型建议 |
+| **图 54-6**| `flowchart TB` | 54.4 如果重来：下一代数据平台的十个设计原则 |
+| **图 54-7**| `gantt` | 如果今天重建：12 个月落地计划 |
+
+### Ch 55: 致谢与团队
 
 **图表数量**: 2
 
 | 图号 | 类型 | 描述 |
 |------|------|------|
-| **图 53-1**| `flowchart TB` | 53.1 团队结构 |
-| **图 53-2**| `flowchart LR` | 53.2 协作模式 |
+| **图 55-1**| `flowchart TB` | 55.1 团队结构 |
+| **图 55-2**| `flowchart LR` | 55.2 协作模式 |

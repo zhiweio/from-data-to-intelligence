@@ -14,7 +14,7 @@
 | 《Designing Data-Intensive Applications》 | Martin Kleppmann | Ch 7, 8 | 数据系统底层原理的圣经 |
 | 《The Data Warehouse Toolkit》 | Ralph Kimball | Ch 8 | 数仓设计方法论 |
 | 《Fundamentals of Data Engineering》 | Joe Reis & Matt Housley | 全书 | 现代数据工程全景 |
-| 《Building Evolutionary Architectures》 | Neal Ford | Ch 52 | 可演进架构的设计原则 |
+| 《Building Evolutionary Architectures》 | Neal Ford | Ch 54 | 可演进架构的设计原则 |
 
 ## AWS 官方文档
 
@@ -22,7 +22,7 @@
 |---|---|
 | [AWS Well-Architected Framework](https://docs.aws.amazon.com/wellarchitected/) | Ch 4 |
 | [Building a Data Lake](https://aws.amazon.com/big-data/datalakes-and-analytics/) | Ch 3, 7 |
-| [Redshift RLS/CLS](https://docs.aws.amazon.com/redshift/) | Ch 8, 18, 49 |
+| [Redshift RLS/CLS](https://docs.aws.amazon.com/redshift/) | Ch 8, 18, 50 |
 | [Step Functions Developer Guide](https://docs.aws.amazon.com/step-functions/) | Ch 10 |
 | [Glue Developer Guide](https://docs.aws.amazon.com/glue/) | Ch 9 |
 | [:simple-terraform: Terraform on AWS](https://developer.hashicorp.com/terraform) | Ch 21 |
@@ -47,9 +47,13 @@
 | [pgvector](https://github.com/pgvector/pgvector) | Ch 41 | :simple-postgresql: PostgreSQL 向量检索 |
 | [Apache AGE](https://age.apache.org/) | Ch 41 | PostgreSQL 图引擎 |
 | [:simple-fastapi: FastAPI](https://fastapi.tiangolo.com/) | Ch 39 | :simple-python: Python API 框架 |
-| [DeepEval](https://github.com/confident-ai/deepeval) | Ch 47 | LLM 评估框架 |
-| [Ragas](https://github.com/explodinggradients/ragas) | Ch 47 | RAG 评估框架 |
-| [Langfuse](https://langfuse.com/) | Ch 47 | LLM 可观测平台 |
+| [DeepEval](https://github.com/confident-ai/deepeval) | Ch 49 | LLM 评估框架 |
+| [Ragas](https://github.com/explodinggradients/ragas) | Ch 49 | RAG 评估框架 |
+| [Langfuse](https://langfuse.com/) | Ch 49 | LLM 可观测平台 |
+| [Knowhere](https://github.com/Ontos-AI/knowhere) | Ch 47 | 非结构化文档 → Agent-ready memory |
+| [PixelRAG](https://github.com/StarTrail-org/PixelRAG) | Ch 47 | 视觉文档 RAG |
+| [Model Context Protocol](https://modelcontextprotocol.io/) | Ch 45, 48 | AI 工具标准协议 |
+| [Milvus](https://milvus.io/) | Ch 47 | 向量数据库（双集合索引） |
 
 ## 论文与技术报告
 
@@ -61,15 +65,15 @@
 | Retrieval-Augmented Generation (Lewis et al.) | Ch 41 |
 | Corrective Retrieval Augmented Generation (CRAG) | Ch 41 |
 | KMB Steiner Tree Algorithm (Kou, Markowsky, Berman) | Ch 43 |
-| Spider / BIRD NL2SQL Benchmarks | Ch 47 |
+| Spider / BIRD NL2SQL Benchmarks | Ch 49 |
 
 ## 行业标准与法规
 
 | 标准/法规 | 相关章节 |
 |---|---|
-| GxP (GMP/GCP/GLP) 数据完整性 | Ch 18, 49 |
-| ALCOA+ 数据完整性原则 | Ch 18, 49 |
-| PIPL（《个人信息保护法》） | Ch 18, 49 |
+| GxP (GMP/GCP/GLP) 数据完整性 | Ch 18, 50 |
+| ALCOA+ 数据完整性原则 | Ch 18, 50 |
+| PIPL（《个人信息保护法》） | Ch 18, 50 |
 | AWS Well-Architected 六大支柱 | Ch 4 |
 | Conway 定律 | Ch 1 |
 
@@ -83,7 +87,7 @@
 | Airflow | Ch 10, 33, 53 | [airflow.apache.org](https://airflow.apache.org/) |
 | Dagster | Ch 10, 33 | [dagster.io](https://dagster.io/) |
 | Hightouch / Census | Ch 39 | [hightouch.com](https://hightouch.com/) |
-| Monte Carlo | Ch 49 | [montecarlodata.com](https://www.montecarlodata.com/) |
+| Monte Carlo | Ch 51 | [montecarlodata.com](https://www.montecarlodata.com/) |
 | ChatGPT Data Analyst | Ch 39 | [openai.com](https://openai.com/) |
 | Snowflake Cortex Analyst | Ch 39 | [snowflake.com/cortex](https://www.snowflake.com/data-cloud/ai/cortex/) |
 | dbt Semantic Layer | Ch 40 | [getdbt.com/semantic-layer](https://www.getdbt.com/product/semantic-layer) |

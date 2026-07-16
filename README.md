@@ -8,7 +8,7 @@
   <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans"><img src="https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-orange" alt="License: CC BY-NC-SA 4.0"></a>
   <a href="https://github.com/zhiweio/from-data-to-intelligence/actions/workflows/docs.yml"><img src="https://img.shields.io/github/actions/workflow/status/zhiweio/from-data-to-intelligence/docs.yml?label=build&logo=github-actions&color=brightgreen" alt="Build Status"></a>
   <img src="https://img.shields.io/badge/Made%20with-MkDocs%20Material-blue?logo=materialformkdocs" alt="MkDocs Material">
-  <img src="https://img.shields.io/badge/Chapters-53-blueviolet" alt="53 Chapters">
+  <img src="https://img.shields.io/badge/Chapters-55-blueviolet" alt="55 Chapters">
   <img src="https://img.shields.io/badge/Language-简体中文-blue" alt="Language: Chinese">
 </p>
 
@@ -22,7 +22,7 @@
 
 这是一本面向**数据工程师、平台架构师与 AI 应用工程师**的实践型技术专著。作者以首席解决方案架构师的第一人称视角，完整记录了一座企业级医药数据平台从无到有、从数据到智能的演进全过程。
 
-全书 8 部分 53 章 + 7 附录，聚焦设计思想与架构 trade-off，图文并茂——书中没有止步于"怎么做"，而是着重回答"**为什么这么做、当时有什么约束、对比主流方案如何取舍**"。代码会过时，而架构思想历久弥新。
+全书 8 部分 55 章 + 7 附录，聚焦设计思想与架构 trade-off，图文并茂——书中没有止步于"怎么做"，而是着重回答"**为什么这么做、当时有什么约束、对比主流方案如何取舍**"。代码会过时，而架构思想历久弥新。
 
 > ⚠️ **虚构声明**：为保护商业隐私，书中所有公司、人员、系统标识均为虚构（甲方 Aurora Pharma、乙方 NorthPeak Consulting）。详见[前言](docs/00-preface.md)。
 
@@ -35,7 +35,7 @@
 ├─ docs/                       # 书籍内容（Markdown 源文件）
 │  ├─ index.md                 # 书主页：依赖总览 + 阅读路径 + 目录
 │  ├─ 00-preface.md            # 前言
-│  ├─ 01-…53-*.md              # 正文 53 章
+│  ├─ 01-…55-*.md              # 正文 55 章
 │  ├─ appendix-A…G.md          # 7 个附录
 │  ├─ stylesheets/             # 自定义样式（图表标题、表格居中等）
 │  └─ javascripts/             # 自定义脚本（Mermaid 图标包注册）

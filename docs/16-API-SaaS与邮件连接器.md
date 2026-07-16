@@ -10,6 +10,7 @@
 ## :material-school: 本章你将学到
 - 通用 REST 客户端设计：认证体系、分页策略、容错重试
 - SaaS 平台批量抽取与双向任务监控
+- Salesforce Bulk API 2.0 选型，以及补齐 simple-salesforce 生态缺口的开源贡献路径
 - 企业邮件附件自动化摄取的架构设计
 
 ---
@@ -293,9 +294,24 @@ flowchart LR
 
 ## 16.2 SaaS 平台批量抽取与双向任务监控
 
-以 Salesforce 为例，SaaS 连接器有两个特殊需求：**批量抽取**和**双向任务监控**。
+上一节把认证、分页、重试收敛成了可配置策略。这对「偶尔调用一次」的内部 API 够用。但以 Salesforce 为代表的 SaaS 源不是这个量级：企业内部往往有**多套基于 Salesforce 开发的 CRM**（客户主数据、拜访活动、MTM 等），对象多，日增量与周期性全量都大，连接器必须同时扛住吞吐与稳定性。于是 SaaS 连接器多出两个硬需求：**批量抽取**和**双向任务监控**。
 
 ### 批量抽取
+
+项目第一年做 SaaS 连接器时，我面对的不是「接一个 Salesforce org」，而是多 org、多业务对象并行进湖。处方、客户、活动这类核心对象动辄百万行；业务又要求 T+1 可用，失败重跑不能拖垮整条日批。规模一旦到这个档位，§16.1 的 REST 分页客户端就会从「慢」变成「不可用」。
+
+我最初确实按通用 REST 思路走：SOQL `SELECT ... LIMIT 200` 翻页拉处方。拉到大约第 50 页，Salesforce 返回 429。原因不是 QPS 打爆，而是 REST 调用计入 **24 小时滚动 API Request Limits**（按 org license 计算，Enterprise Edition 常见量级是 100k/24h + 用户数×200）。几百万行按 200 条/页要几万次请求，远超配额。SaaS 限流模型是日/小时滚动配额，不是内部 API 常见的 QPS；把「通用 REST 连接器」原样套到 Salesforce，是迁移时最容易踩的坑。
+
+接下来要在三条路上选：继续 REST（加更狠的限流与隔夜续跑）、Bulk API 1.0，还是 Bulk API 2.0。
+
+| 路径 | 限额与吞吐模型 | 作业形态 | 对 Glue Python Shell 的代价 |
+|------|----------------|----------|-----------------------------|
+| **REST Query** | 计入 24h API Request Limits；百万级对象易耗尽配额 | 同步分页，客户端自己拼页 | 实现简单，但规模上不可用 |
+| **Bulk API 1.0** | 面向大批量，但仍要自行管理 batch/job 细节 | XML/作业+批次两级模型 | 能跑，运维与排障面更大 |
+| **Bulk API 2.0** | 异步作业；查询一次提交、结果按 CSV 分页下载；ingest 单次约 100MB CSV | REST 作业化：创建 → 执行/上传 → 轮询 → 下载 | 与长任务天然契合，客户端状态机更短 |
+<p class="caption" markdown="span">**表 16-10** Salesforce 抽取路径对比：REST / Bulk 1.0 / Bulk 2.0</p>
+
+我最终钉在 **Bulk API 2.0**：一次提交 SOQL，Salesforce 后台异步跑完，客户端轮询状态后批量下载，几百万行不必再按页「啃」配额。不是「Bulk 比 REST 更时髦」，而是**规模决定架构**（M11）：SaaS 连接器默认就要假设数据量会逼你走作业化批量通道。
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
@@ -321,11 +337,32 @@ sequenceDiagram
 ```
 <p class="caption" markdown="span">**图 16-6** 批量抽取</p>
 
-SaaS 平台数据量大，不能用普通 REST API 逐条查——必须用**批量 API**（如 Salesforce Bulk API v2），异步提交查询、轮询状态、下载结果。
+图 16-6 是 Aurora SaaS 连接器对 Bulk 2.0 的最小闭环：创建作业 → 轮询 → 下载 → 落 S3。重点不在多几个 HTTP 步骤，而在把「拉取」从同步请求改成了**可观测的长任务**。Job ID 可以写入任务表，失败可按作业重试，不用在第 N 页丢游标后整段重来。对接 Salesforce 这类高吞吐 SaaS，连接器的一等公民应是「作业」，不是「单次 HTTP」。
 
-我选 Bulk API 而非普通 REST API，是被 Salesforce 的限流逼的。最初我用 REST API 逐条查 Salesforce 的处方数据——SOQL `SELECT ... LIMIT 200` 分页拉取。结果拉到第 50 页时 Salesforce 返回 429（限流），因为 REST API 的调用频率有上限（每秒 100 次）。而 Salesforce 有几百万条处方记录，按 200 条/页要拉几万次——远超限流。换成 Bulk API v2 后，一次提交 SOQL 查询，Salesforce 后台异步执行，完成后批量下载——几百万条记录一次作业搞定，不触发限流。SaaS 平台的数据量决定了必须用批量 API——REST 逐条查在百万级数据下不可行。这是 SaaS 连接器和普通 API 连接器的本质区别。
+协议选对了，还缺一块：Python 里得有一个扛得住生产的 Bulk 2.0 客户端。下一节讲我当时为什么没能「直接 pip install 完事」，以及最后怎么补上这个缺口。
+
+### 补齐生态缺口：为 simple-salesforce 贡献 Bulk 2.0
+
+Aurora 的摄取跑在 Glue Python Shell 上，团队栈是 Python。协议层选定 Bulk API 2.0 之后，我去找现成的 SDK，结论很不舒服：当时**没有**达到我们吞吐与稳定性标准的官方 Python Bulk 2.0 客户端；社区里相对成熟的是非官方库 [simple-salesforce](https://github.com/simple-salesforce/simple-salesforce)，但它主路径还停在 REST 与较老的 Bulk 1.0，**缺 Bulk 2.0**。
+
+摆在桌上有几条路：
+
+1. **自己写一层薄封装**：上线最快，但作业状态机、CSV 分片、结果下载、错误分类全要自建，安全补丁与 API 变更也全自己扛。
+2. **连接器里直接拼 REST**：可行，等于把 SDK 该做的事搬进每个 Glue Job，配置驱动会迅速腐化成「每个对象一份私货」。
+3. **站在成熟社区库上补齐缺口**：评审和兼容要花时间，但登录、会话、重试、对象语法可以复用，平台只维护「多出来的那一截」。
+
+我选了第三条。不是因为开源情怀，而是平台工程的算账：Salesforce 是 Aurora 的关键入湖路径之一，私有 fork 三年后一定比上游贡献更贵。于是我在 simple-salesforce 上设计并实现了 `bulk2`：查询作业与 ingest 作业（insert/update/upsert/delete）、状态轮询、结果下载，以及面向 100MB 上限的 CSV 分片；并向上游提交了 [PR #648](https://github.com/simple-salesforce/simple-salesforce/pull/648)（2023 年合并）。后来生产里又撞上「字段内逗号、换行、非常规分隔符」把朴素按行切分搞崩的问题。分片一旦静默截断，就是**假成功**：作业显示完成，落湖数据却缺列或缺行。我用标准库 `csv` 重做了分片，支持多种列分隔符与换行约定，并修掉相关缺陷，再以 [PR #736](https://github.com/simple-salesforce/simple-salesforce/pull/736) 合入。
+
+这两次贡献让我更清楚 Bulk 2.0 在卖什么：不是「另一个 endpoint」，而是**作业化 + CSV 管道**。客户端必须把「创建 / 上传或查询 / 轮询 / 下载」收成稳定状态机；分片必须遵守 CSV 语义，否则特殊字符会把稳定性问题伪装成偶发数据质量事故。Aurora 的 SaaS 连接器就建在补齐后的客户端之上：多 org、多对象靠配置驱动调度，Glue Job 只编排作业生命周期并落 S3。后来 [Ch 37](./37-数据即服务-DaaS激活层设计.md) 做 DaaS 异步 Bulk 时，状态机直接借鉴了 Salesforce Bulk v2 这套语义，内外一致。
+
+!!! warning "Trade-off"
+    上游贡献不是免费的：评审周期、API 兼容、测试矩阵都要时间；紧急故障时你也不能「只改自己仓库就上线」。但相比长期维护私有 fork，把关键路径摊到社区维护面上，总成本更低，也避免每个项目各自造一套半残 Bulk 客户端。我后来的体会是：生态不够用时，补生态往往比绕开生态更划算。
+
+抽得进只是一半。数据还要在 CDP 与 Salesforce 之间「对得上账」。下一节的双向任务监控，就是为「假成功」准备的第二道闸。
 
 ### 双向任务监控
+
+批量通道解决了「怎么稳定地大进大出」；双向监控解决的是跨系统协作里更隐蔽的问题：**一侧说成功、另一侧没收到**。
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#edf5ff','primaryTextColor':'#161616','primaryBorderColor':'#0f62fe','lineColor':'#697077','secondaryColor':'#d9fbfb','tertiaryColor':'#f2f4f8','fontSize':'14px'}}}%%
@@ -487,7 +524,7 @@ flowchart TB
     GLUE -->|下载附件| S3
     GLUE -->|标记已读| OUTLOOK
     S3 -->|信号触发| SF
-    SF -->|Landing→Raw→Enriched| PIPELINE
+    SF -->|Landing→Raw→SQL ELT| PIPELINE
 
     class USER bpUser
     class EXCEL bpExternal
@@ -727,8 +764,7 @@ flowchart LR
         LANDING[S3 Landing]
         SF[Step Functions<br/>Ingestion 状态机]
         RAW[S3 Raw]
-        ENRICHED[S3 Enriched]
-        RS[Redshift]
+        RS[Redshift enriched_*]
     end
 
     CONFIG -->|运行时读取| GLUE
@@ -736,11 +772,10 @@ flowchart LR
     GLUE -->|写入附件| LANDING
     LANDING -->|信号触发| SF
     SF -->|Landing→Raw| RAW
-    RAW -->|Raw→Enriched| ENRICHED
-    ENRICHED -->|COPY 入仓| RS
+    RAW -->|SQL ELT 入仓| RS
 
     class GLUE,SF bpProcess
-    class LANDING,RAW,ENRICHED,RS bpData
+    class LANDING,RAW,RS bpData
     class CONFIG,AUTH bpInfo
 ```
 <p class="caption" markdown="span">**图 16-12** Outlook 连接器与标准管线集成</p>
@@ -749,7 +784,7 @@ flowchart LR
 |----------|------|
 | **配置驱动** | 邮件匹配规则存 DynamoDB，运行时动态读取 |
 | **Step Functions** | 复用 Ingestion 状态机，无需新建编排 |
-| **三层 ETL** | Landing → Raw → Enriched 标准流程 |
+| **两跳 ETL** | Landing → Raw → Redshift SQL ELT |
 | **批次标识** | 邮件 Message-ID 作为批次标识，支持追溯 |
 | **审计日志** | 邮件处理记录写入审计日志表 |
 <p class="caption" markdown="span">**表 16-9** Outlook 连接器复用组件</p>
@@ -771,7 +806,9 @@ flowchart LR
 
 ## :material-check-circle: 本章小结
 - 通用 REST 客户端通过可配置策略层抽象差异：认证（Token/Key/OAuth/签名）/ 分页（Offset/Cursor/Page/Link）/ 容错（指数退避+抖动）
-- SaaS 连接器需特殊处理：批量 API 异步抽取 + 双向任务监控实现端到端可观测
+- SaaS 连接器需特殊处理：多 CRM / 百万级对象下必须走批量作业；Salesforce 上 REST 分页会撞上 24h API Request Limits，Bulk API 2.0 才是默认通道
+- 生态不够用时补生态：在 simple-salesforce 上实现并上游贡献 Bulk 2.0（[PR #648](https://github.com/simple-salesforce/simple-salesforce/pull/648)）与 CSV 分片精修（[PR #736](https://github.com/simple-salesforce/simple-salesforce/pull/736)），再支撑配置驱动的多 org 抽取
+- 双向任务监控补上跨系统「假成功」：CDP 与 Salesforce 两侧对账，端到端可观测
 - 邮件附件摄取支持两类场景：AWS SES（供应商/事件驱动）和 Outlook（业务用户/定时轮询）
 - Outlook 连接器通过 Microsoft Graph API 扫描邮箱，按配置规则（主题正则/发件人白名单/附件类型）匹配目标邮件，下载附件到 S3 后标记已读
 - 邮件匹配规则存 DynamoDB，配置驱动无需改代码——第六类连接器复用标准数据管线
@@ -780,5 +817,5 @@ flowchart LR
 ---
 
 !!! quote "下一章"
-    [Ch 17 Landing→Raw→Enriched 开发实战](./17-Landing到Raw到Enriched开发实战.md) —— 连接器把数据取到 Landing 了，接下来看三层 ETL 加工的开发实战。
+    [Ch 17 Landing→Raw→Redshift 开发实战](./17-Landing到Raw到Redshift开发实战.md) —— 连接器把数据取到 Landing 了，接下来看两跳 ETL（标准化 + SQL ELT 入仓）的开发实战。
 

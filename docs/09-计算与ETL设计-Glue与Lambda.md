@@ -47,8 +47,11 @@ linkStyle default stroke:#697077,stroke-width:2px
 |---|---|---|---|
 | **Glue PySpark** | 分布式 Spark | 大规模数据转换、跨源 join、聚合 | 轻量任务（启动开销大） |
 | **Glue Python Shell** | 单机 Python | 中等数据量（<GB 级）、API 调用、文件处理 | 大规模分布式处理 |
-| **AWS Lambda** | 无服务器函数 | 事件响应（<15 分钟）、参数处理、状态回写 | 长时间运行、大内存 |
+| **AWS Lambda** | 无服务器函数 | 事件响应（<15 分钟）、参数处理、状态回写 | 长时间运行、超大内存（上限 10GB） |
 <p class="caption" markdown="span">**表 9-1** 计算选型：Glue PySpark vs Python Shell vs Lambda</p>
+
+!!! note "Glue 版本口径"
+    Glue 2.0 已于 2024-01-31 结束支持，并将于 2026-04-01 EOL。本书计算层统一按 **Glue 4.0+**（Spark 3.3 / Python 3.10，原生 Iceberg）叙述；新作业应直接用 4.0 或 5.0，不要再开 2.0 作业。Lambda 内存上限自 2020 年底起为 **10GB**（早期文档常写 3GB，已过时）。
 
 
 ### 选型决策树
@@ -83,7 +86,7 @@ linkStyle default stroke:#697077,stroke-width:2px
 
 ## 9.2 控制面（Lambda）与数据面（Glue）的职责切分
 
-这是平台计算架构的**核心设计决策**：把"控制逻辑"和"数据处理"分离到不同的计算资源。
+平台计算架构里，我把"控制逻辑"和"数据处理"拆到不同的计算资源。与 [Ch 7](./07-数据湖分层设计.md)/[Ch 8](./08-数据仓库设计-Redshift.md) 的分层演进同步，数据面也收缩了：Glue 不再跑 Raw→Enriched 的 Spark 金层，业务变换下推到 Redshift SQL ELT。
 
 ```mermaid
 C4Container
@@ -98,15 +101,15 @@ C4Container
 
     Container_Boundary(data, "数据面（Glue）", "重型、批量、数据处理——分钟到小时级运行，按 DPU·秒计费") {
         Container(ingest, "数据摄取", "Glue PySpark / Python Shell", "从 SFTP/JDBC/API/SaaS/邮件拉取原始数据到 S3 Landing 层，五类连接器分支")
-        Container(transform, "数据转换", "Glue PySpark", "标准化（Landing→Raw）+ 清洗/关联/质检/脱敏/代理键（Raw→Enriched），大规模 join/聚合")
-        Container(load, "数据加载", "Glue PySpark", "COPY Enriched Parquet 到 Redshift 维度/事实表，DDL 自动建表/改表")
+        Container(transform, "数据标准化", "Glue PySpark", "Landing→Raw：格式/字段/类型标准化；写 Catalog；不做业务清洗")
+        Container(load, "仓内 SQL ELT", "Glue Python Shell + boto3", "经 Redshift Data API 提交 SQL：Spectrum 读 Raw → 清洗/脱敏 → enriched_*")
         Container(export, "数据导出", "Glue Python Shell", "UNLOAD Redshift 查询结果到 S3 → 推送到 SFTP/API/Salesforce 等下游系统")
     }
 
     Rel(evt, orchestrate, "触发状态机——传递 domain+entity+batch_id", "Lambda SDK → Step Functions API")
     Rel(orchestrate, ingest, "启动摄取作业——注入运行时参数（配置/水位/批次ID）", "Step Functions → Glue Job")
-    Rel(ingest, transform, "数据流入下阶段：Landing → Raw → Enriched", "S3 Parquet Read/Write")
-    Rel(transform, load, "加工完成：Enriched Parquet → COPY 入仓", "S3 Read + Redshift COPY")
+    Rel(ingest, transform, "Landing → Raw 标准化", "S3 Parquet Read/Write")
+    Rel(transform, load, "Catalog 就绪 → SQL ELT 入仓", "Redshift Data API")
     Rel(load, status, "回写执行状态：行数/耗时/错误信息", "Glue → Lambda → DynamoDB + Redshift")
 
     UpdateElementStyle(evt, $bgColor="#edf5ff", $fontColor="#161616", $borderColor="#0f62fe")
@@ -130,7 +133,7 @@ C4Container
 |---|---|---|
 | **职责** | 触发、参数、状态、编排 | 数据搬运和转换 |
 | **运行时间** | 秒级到分钟级 | 分钟级到小时级 |
-| **资源** | 小（128MB-3GB） | 大（可分配数十 DPU） |
+| **资源** | 小（128MB-10GB，2023 年起 Lambda 内存上限提升至 10GB） | 大（可分配数十 DPU） |
 | **触发方式** | 事件驱动（S3/EventBridge） | 被 Step Functions 调用 |
 | **计费** | 按请求次数+时长 | 按 DPU 秒 |
 <p class="caption" markdown="span">**表 9-2** 控制面（Lambda）与数据面（Glue）的职责切分</p>
@@ -138,17 +141,21 @@ C4Container
 
 ### 为什么要分离
 
-控制面与数据面分离的决策，不是我从理论上推导的，而是企业征信项目的反面教训逼出来的。企业征信时，控制逻辑（触发、参数、状态）和数据处理（ETL）全混在 Spark Application 里——一个 ETL 脚本既做数据转换，又做状态回写，还做错误重试逻辑。后果有三个：一是**故障蔓延**——数据处理的 OOM（内存溢出）把整个 Application 搞崩，控制逻辑（状态回写）也跟着崩，运维没法知道"跑到哪一步了"；二是**扩展冲突**——控制逻辑要高频低耗（每秒可能触发多次），数据处理要低频高耗（一次跑几小时），混在一起没法分别扩展；三是**安全边界模糊**——数据处理要访问 S3/Redshift 的数据权限，控制逻辑只需要 DynamoDB 的配置权限，混在一起只能给"全权限"，违反最小权限原则。到 Aurora 我把两者彻底分离——Lambda 只管控制（不碰数据），Glue 只管数据（不做编排）——三个问题全部解决。
+控制面与数据面分离的决策，不是我从理论上推导的，而是企业征信项目的反面教训逼出来的。企业征信时，控制逻辑（触发、参数、状态）和数据处理（ETL）全混在 Spark Application 里：一个 ETL 脚本既做数据转换，又做状态回写，还做错误重试。后果很具体。数据处理 OOM 时，整个 Application 崩了，控制逻辑也跟着崩。控制要高频低耗，数据要低频高耗，混在一起没法分别扩展。安全边界也糊了，只能给"全权限"。到 Aurora 我把两者彻底分离：Lambda 只管控制（不碰数据），Glue 只管数据（不做编排）。
 
-这个分离还有一个我在设计时没预料到、但第四年极重要的战略价值——**它是 Agentic BI 的安全基石**。当 AI Agent 代用户操作数据平台时（见 [Ch 42 Agent 编排](./42-Agent编排-LangGraph与状态机.md)），Agent 调用的是控制面 Lambda（触发任务、查状态），而不是直接调数据面 Glue（处理数据）。Lambda 层可以做"Agent 权限校验+操作审计"，Glue 层只接受 Lambda 的合法触发——**Agent 永远不直接碰数据**。如果当时控制面和数据面混在一起，Agent 就要直接调 Glue，安全边界无从划定。好的架构分离是面向未来的——它不预测未来谁来调用，但保证任何调用都有清晰的安全边界（M6 治理与执行分离的长期回报）。
+分层演进后又加了一条：**业务清洗/脱敏/代理键尽量不在 Glue Spark 里做第二遍物化**。第 0–1 年数据面是 Landing→Raw→Enriched→COPY；现行是 Landing→Raw（Glue）+ SQL ELT 入仓（Data API）。我当时算过一笔账：上千张表的 Raw→Enriched 作业队列经常堵，DPU 账单里有一大块是"把马上要 COPY 进仓的数据再写一遍 S3"。把变换下推到 Redshift 之后，Glue 槽位和 S3 写入都瘦了一圈。代价是复杂跨源 join 可能更吃集群；那时仍可开特例 Glue PySpark，但默认路径是 SQL。
+
+第四年才真正体会到这套分离的好处：它成了 Agentic BI 的安全边界。当 AI Agent 代用户操作数据平台时（见 [Ch 42 Agent 编排](./42-Agent编排-LangGraph与状态机.md)），Agent 调用的是控制面 Lambda（触发任务、查状态），而不是直接调数据面 Glue。Lambda 层可以做"Agent 权限校验+操作审计"，Glue/ELT 层只接受合法触发。**Agent 永远不直接碰数据**（M6 治理与执行分离）。
 
 !!! tip "引申"
     控制面与数据面分离是分布式系统的经典原则（类似 Kubernetes 的控制平面与数据平面）。好处是：
     1. **故障隔离**：数据面 Glue 挂了不影响控制面 Lambda 继续监听事件
     2. **独立扩展**：控制面高频低耗，数据面低频高耗，扩展策略不同
-    3. **成本优化**：Lambda 按请求计费（空闲免费），Glue 按运行时长计费（空闲不跑就不花钱）
-    4. **职责清晰**：Lambda 不碰数据（安全边界明确），Glue 不做编排（单一职责）
+    3. **成本优化**：Lambda 按请求计费（空闲免费），Glue 按运行时长计费；SQL ELT 进一步减少不必要的 DPU
+    4. **职责清晰**：Lambda 不碰数据，Glue 不做编排；仓内变换用 SQL，湖上只做标准化
 
+!!! warning "Trade-off"
+    业务变换下推 Redshift 后，Glue 更轻，但 Redshift 成了变换瓶颈点。若某域日增 TB 级且 join 极重，把变换塞进仓内可能拖垮 BI 查询窗口。那时应把该域的重变换留在 Glue（甚至局部物化），而不是教条地"一切 SQL"。规模决定架构（M11）：默认 SQL ELT，例外按指标开闸。
 ---
 
 ## 9.3 引申：Spark on Glue 的成本与性能权衡
@@ -197,13 +204,13 @@ linkStyle default stroke:#697077,stroke-width:2px
 ---
 
 ## :material-check-circle: 本章小结
-- 三类计算资源：Glue PySpark（大规模分布式）/ Python Shell（中等单机）/ Lambda（事件驱动轻量）——选最小够用的
-- 核心设计决策：控制面（Lambda）与数据面（Glue）分离——故障隔离、独立扩展、成本优化、职责清晰
-- Glue 成本 = DPU × 时长，优化策略：最小 DPU、合理分区、Push Down、避免小文件
+- 三类计算资源：Glue PySpark / Python Shell / Lambda——选最小够用的
+- 控制面（Lambda）与数据面（Glue）分离；数据面现行主路径为 Landing→Raw + Data API SQL ELT（不再默认 Raw→Enriched→COPY）
+- Glue 成本 = DPU × 时长；业务变换下推 Redshift 可进一步省 DPU，但要注意仓内算力瓶颈
 - 最常见的成本陷阱：过度配置 DPU 和小文件问题
 
 ---
 
 !!! quote "下一章"
-    [Ch 10 编排与调度设计（Step Functions + EventBridge）](./10-编排与调度设计-StepFunctions与EventBridge.md) —— 计算资源选好了，怎么把它们串成有状态的流程？接下来看编排层。
+    [Ch 10 编排与调度设计（Step Functions + EventBridge）](./10-编排与调度设计-StepFunctions与EventBridge.md) —— 计算资源选好了，怎么把它们串成有状态的流程？接下来看编排层如何从四步金层演进为三步 SQL ELT。
 
