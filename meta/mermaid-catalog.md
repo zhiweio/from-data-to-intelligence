@@ -7,14 +7,14 @@
 
 ## 统计总览
 
-全书共 **348** 个 Mermaid 图表，分布在 **56** 个章节中。
+全书共 **352** 个 Mermaid 图表，分布在 **56** 个章节中。
 
 | 图表类型 | 数量 | 占比 |
 |---------|------|
-| `flowchart LR` | 134 | 38.5% |
-| `flowchart TB` | 115 | 33.0% |
-| `flowchart TD` | 45 | 12.9% |
-| `mindmap` | 11 | 3.2% |
+| `flowchart LR` | 136 | 38.6% |
+| `flowchart TB` | 117 | 33.2% |
+| `flowchart TD` | 45 | 12.8% |
+| `mindmap` | 11 | 3.1% |
 | `sequenceDiagram` | 14 | 4.0% |
 | `timeline` | 7 | 2.0% |
 | `quadrantChart` | 4 | 1.1% |
@@ -563,7 +563,7 @@
 
 ## Part VII Agentic BI
 
-> 12 章 | 77 个图表
+> 12 章 | 81 个图表
 
 ### Ch 38: 时代命题：AI-Ready 数据供应
 
@@ -689,7 +689,7 @@
 
 ### Ch 47: 多模态业务知识库：Knowhere × PixelRAG 与 LumenKB
 
-**图表数量**: 6
+**图表数量**: 8
 
 | 图号 | 类型 | 描述 |
 |------|------|------|
@@ -698,17 +698,21 @@
 | **图 47-3**| `flowchart TB` | Cloud / Self-hosted / SDK 三角取舍 |
 | **图 47-4**| `flowchart LR` | PixelRAG 视觉检索路径 |
 | **图 47-5**| `flowchart TB` | LumenKB 双通道摄入 |
-| **图 47-6**| `flowchart LR` | 语义树锚点：视觉命中挂回章节 |
+| **图 47-6**| `flowchart TB` | 摄入失败策略：探测 fail-open、解析 fail-closed、视觉非阻塞 |
+| **图 47-7**| `flowchart LR` | 语义树锚点：视觉命中挂回章节 |
+| **图 47-8**| `flowchart TB` | 查询侧 prompt 级融合（非跨模态 RRF） |
 
 ### Ch 48: 一线产品助手：FieldGenie 与 MCP 增强 Agentic BI
 
-**图表数量**: 3
+**图表数量**: 5
 
 | 图号 | 类型 | 描述 |
 |------|------|------|
 | **图 48-1**| `flowchart LR` | 材料供给：门户/文档湖 → LumenKB → 一线与 Agent |
 | **图 48-2**| `flowchart TB` | FieldGenie 答案形态：检索 → 生成 → 富化 |
-| **图 48-3**| `sequenceDiagram` | NewtonData 经 MCP 调用 LumenKB |
+| **图 48-3**| `flowchart LR` | FieldGenie 主路径：check_cache → retrieve → generate → enrich |
+| **图 48-4**| `flowchart LR` | Explore 分支：跳过 generate，只追加证据 |
+| **图 48-5**| `sequenceDiagram` | NewtonData 经 MCP 调用 LumenKB |
 
 ### Ch 49: 评估、可观测与持续演进
 
